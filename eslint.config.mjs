@@ -8,16 +8,17 @@ export default tseslint.config(
   {
     files: ["**/*.{ts,tsx}"],
     plugins: {
-      "@next/next": nextPlugin,
+      "@next/next": nextPlugin
     },
     rules: {
       ...nextPlugin.configs.recommended.rules,
       ...nextPlugin.configs["core-web-vitals"].rules,
       "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/triple-slash-reference": "off"
-    },
+      "@typescript-eslint/triple-slash-reference": "off",
+      "@next/next/no-img-element": "off"
+    }
   },
   {
-    ignores: [".next/**", "node_modules/**"]
+    ignores: [".next/**", "node_modules/**", "storage/video-batches/**"]
   }
 );

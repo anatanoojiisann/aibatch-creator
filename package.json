@@ -1,5 +1,5 @@
 {
-  "name": "ai-video-batch-workflow",
+  "name": "aibatch-creator",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "build": "next build",
-    "test:workflow": "tsx -r tsconfig-paths/register scripts/smoke-video-workflow.ts"
+    "test:workflow": "tsx -r tsconfig-paths/register scripts/smoke-workflow.ts"
   },
   "dependencies": {
     "next": "^15.3.3",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.28.0",
+    "@next/eslint-plugin-next": "^15.3.3",
     "@types/node": "^22.15.29",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",

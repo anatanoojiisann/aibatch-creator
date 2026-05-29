@@ -1,6 +1,7 @@
 node_modules/
 .next/
 .npm-cache/
-runs/
-*.tsbuildinfo
 .env
+*.tsbuildinfo
+storage/video-batches/*
+!storage/video-batches/.gitkeep
