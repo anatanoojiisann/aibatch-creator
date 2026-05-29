@@ -183,6 +183,44 @@ h2 {
   white-space: pre-wrap;
 }
 
+.checklist {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 14px 0;
+  background: #fff;
+}
+
+.checklist ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.checklist li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.checklist li.done {
+  color: var(--ok);
+}
+
+.checklist li.todo {
+  color: var(--bad);
+}
+
+.recommendation {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 @media (max-width: 900px) {
   .grid,
   .prompt-grid {

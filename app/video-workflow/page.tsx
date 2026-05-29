@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BatchCreator, BatchCreatorValues } from "@/components/video-workflow/BatchCreator";
 import { ImagePreviewTable } from "@/components/video-workflow/ImagePreviewTable";
+import { PrerequisiteChecklist } from "@/components/video-workflow/PrerequisiteChecklist";
 import { PromptTable } from "@/components/video-workflow/PromptTable";
 import { StatusBadge } from "@/components/video-workflow/StatusBadge";
 import { WorkflowActions } from "@/components/video-workflow/WorkflowActions";
@@ -12,6 +13,9 @@ type ApiResult = {
   ok: boolean;
   batch?: VideoBatch;
   error?: string;
+  errorCode?: string;
+  message?: string;
+  missingRequirements?: string[];
   finalReportPath?: string;
 };
 
@@ -30,7 +34,9 @@ export default function VideoWorkflowPage() {
     });
     const data = await response.json() as ApiResult;
     if (data.batch) setBatch(data.batch);
-    setMessage(data.ok ? `${path} complete${data.finalReportPath ? `\n${data.finalReportPath}` : ""}` : data.error || "Request failed");
+    setMessage(data.ok
+      ? `${path} complete${data.finalReportPath ? `\n${data.finalReportPath}` : ""}`
+      : formatApiError(data));
     setBusy(false);
     return data;
   }
@@ -60,8 +66,9 @@ export default function VideoWorkflowPage() {
         <section className="panel">
           <h2>Create VideoBatch</h2>
           <BatchCreator disabled={busy} onCreate={create} />
+          <PrerequisiteChecklist batch={batch} />
           <h2>Workflow Actions</h2>
-          <WorkflowActions batch={batch} disabled={busy} onRun={call} />
+          <WorkflowActions batch={batch} disabled={busy} onRun={call} onBlocked={setMessage} />
           {message ? <div className="notice">{message}</div> : null}
         </section>
         <section className="panel">
@@ -73,4 +80,13 @@ export default function VideoWorkflowPage() {
       </div>
     </main>
   );
+}
+
+function formatApiError(data: ApiResult): string {
+  const base = data.message || data.error || "Request failed";
+  const code = data.errorCode ? ` (${data.errorCode})` : "";
+  const missing = data.missingRequirements?.length
+    ? `\nMissing requirements:\n- ${data.missingRequirements.join("\n- ")}`
+    : "";
+  return `${base}${code}${missing}`;
 }

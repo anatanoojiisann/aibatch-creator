@@ -1,20 +1,32 @@
+import { existsSync } from "node:fs";
 import { NextResponse } from "next/server";
 import { createVideoFactoryAdapter, writeCommandManifest } from "@/lib/integrations/videofactory/videoFactoryAdapter";
 import { loadBatch, saveBatch } from "@/lib/services/batchService";
+import { validateVideoSubmitPrerequisites } from "@/lib/services/videoSubmissionGuard";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const batch = await loadBatch(String(body.batchId));
-    const eligible = batch.items.filter((item) => item.referenceImage.status === "uploaded_public" && item.referenceImage.publicUrl);
-    if (eligible.length === 0) throw new Error("No approved uploaded images with publicUrl are eligible for video submission.");
-    if (!batch.videoFactory.promptDir || !batch.videoFactory.imageUrlMapPath) {
-      throw new Error("Prompt dir and image-url-map.json are required before submit-videos.");
+    const validation = validateVideoSubmitPrerequisites(
+      batch,
+      Boolean(batch.videoFactory.imageUrlMapPath && existsSync(batch.videoFactory.imageUrlMapPath))
+    );
+    if (!validation.ok) {
+      return NextResponse.json({
+        ok: false,
+        errorCode: validation.errorCode,
+        message: validation.message,
+        missingRequirements: validation.missingRequirements
+      }, { status: 400 });
     }
+    const eligible = batch.items.filter((item) => item.referenceImage.status === "uploaded_public" && item.referenceImage.publicUrl);
+    const promptDir = batch.videoFactory.promptDir as string;
+    const imageUrlMapPath = batch.videoFactory.imageUrlMapPath as string;
     await saveBatch({ ...batch, status: "video_submitting" });
     const result = await createVideoFactoryAdapter().submitVideos({
-      promptDir: batch.videoFactory.promptDir,
-      imageUrlMapPath: batch.videoFactory.imageUrlMapPath,
+      promptDir,
+      imageUrlMapPath,
       remote: Boolean(body.remote),
       dryRun: body.dryRun !== false,
       limit: Number(body.limit || 1),
@@ -33,6 +45,11 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ok: result.ok, batch: updated, result });
   } catch (error) {
-    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Unknown error" }, { status: 400 });
+    return NextResponse.json({
+      ok: false,
+      errorCode: "SUBMIT_VIDEOS_FAILED",
+      message: error instanceof Error ? error.message : "Unknown error",
+      missingRequirements: []
+    }, { status: 400 });
   }
 }
