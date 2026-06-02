@@ -1,5 +1,6 @@
 import { VideoBatch } from "@/lib/schemas/videoBatch.schema";
 import { ReadResultManifestResult } from "@/lib/integrations/videofactory/videoFactoryTypes";
+import { isRealMp4Url, mockVideoMessage } from "@/lib/services/videoAssetValidation";
 
 export function applyVideoFactoryResult(batch: VideoBatch, result: ReadResultManifestResult): VideoBatch {
   const items = batch.items.map((item) => {
@@ -11,7 +12,7 @@ export function applyVideoFactoryResult(batch: VideoBatch, result: ReadResultMan
         ...item.referenceImage,
         status: mapImageStatus(update.imageStatus, item.referenceImage.status),
         localPath: update.imageLocalPath || item.referenceImage.localPath,
-        previewUrl: update.imageLocalPath ? `/api/video-batches/sync-images?file=${encodeURIComponent(update.imageLocalPath)}` : item.referenceImage.previewUrl,
+        previewUrl: update.imageLocalPath ? `/api/video-batches/image-preview?file=${encodeURIComponent(update.imageLocalPath)}` : item.referenceImage.previewUrl,
         publicUrl: update.imagePublicUrl || item.referenceImage.publicUrl,
         errorCode: update.errorCode || item.referenceImage.errorCode,
         errorMessage: update.errorMessage || item.referenceImage.errorMessage
@@ -21,8 +22,8 @@ export function applyVideoFactoryResult(batch: VideoBatch, result: ReadResultMan
         status: mapVideoStatus(update.videoStatus, item.generation.status),
         videoJobId: update.videoJobId || item.generation.videoJobId,
         videoUrl: update.videoUrl || item.generation.videoUrl,
-        errorCode: update.errorCode || item.generation.errorCode,
-        errorMessage: update.errorMessage || item.generation.errorMessage
+        errorCode: update.videoStatus === "video_succeeded" && !isRealMp4Url(update.videoUrl) ? "MOCK_VIDEO_ONLY" : update.errorCode || item.generation.errorCode,
+        errorMessage: update.videoStatus === "video_succeeded" && !isRealMp4Url(update.videoUrl) ? mockVideoMessage : update.errorMessage || item.generation.errorMessage,
       }
     };
   });
@@ -42,6 +43,7 @@ function mapVideoStatus(status: string | undefined, fallback: VideoBatch["items"
   if (status === "video_failed") return "video_failed";
   if (status === "video_succeeded") return "video_succeeded";
   if (status === "video_generating") return "video_generating";
+  if (status === "waiting_for_real_video_output") return "waiting_for_real_video_output";
   if (status === "video_submitted") return "video_submitted";
   return fallback;
 }

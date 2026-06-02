@@ -7,7 +7,7 @@ export function PromptTable({ items }: { items: VideoCreativeItem[] }) {
   return (
     <div className="table">
       {items.map((item) => (
-        <article className="card" key={item.id}>
+        <article className="card" key={`${item.batchId}:${item.id}`}>
           <h3>{item.index}. {item.title}</h3>
           <div className="prompt-grid">
             <Editable label="Title" value={item.title} />

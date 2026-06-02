@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { ReadResultManifestResult } from "@/lib/integrations/videofactory/videoFactoryTypes";
+import { isRealMp4Url } from "@/lib/services/videoAssetValidation";
 
 export async function parseVideoFactoryManifest(paths: {
   imageResultPath?: string;
@@ -49,7 +50,7 @@ export async function parseVideoFactoryManifest(paths: {
       const videoUrl = submission.response?.videoUrl || submission.response?.url || submission.videoUrl;
       upsert(items, itemId, {
         itemId,
-        videoStatus: submission.ok === false ? "video_failed" : videoUrl ? "video_succeeded" : "video_generating",
+        videoStatus: submission.ok === false ? "video_failed" : isRealMp4Url(videoUrl) ? "video_succeeded" : "waiting_for_real_video_output",
         videoJobId: submission.response?.providerJobId || submission.videoJobId,
         videoUrl,
         errorCode: submission.ok === false ? "VIDEO_SUBMIT_FAILED" : undefined,

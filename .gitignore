@@ -1,7 +1,13 @@
 node_modules/
 .next/
 .npm-cache/
+test-results/
+playwright-report/
 .env
 *.tsbuildinfo
 storage/video-batches/*
 !storage/video-batches/.gitkeep
+
+.env.*
+
+.env.local

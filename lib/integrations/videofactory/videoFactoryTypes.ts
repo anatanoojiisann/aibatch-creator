@@ -18,6 +18,83 @@ export type VideoFactoryCommandResult = {
   stdout: string;
   stderr: string;
   manifestPath?: string;
+  resultJsonPath?: string;
+  submissions?: VideoFactoryVideoSubmission[];
+  runtimeDiagnostics?: VideoFactoryRuntimeDiagnostics;
+};
+
+export type VideoFactoryVideoSubmission = {
+  itemId?: string;
+  dryRun?: boolean;
+  ok?: boolean;
+  submittedAt?: string;
+  videoJobId?: string;
+  videoUrl?: string;
+  errorMessage?: string;
+};
+
+export type VideoFactoryRuntimeDiagnostics = {
+  keyPresent: boolean;
+  keyLength: number;
+  keySha256Prefix: string;
+  keyMasked: string;
+  bridgeUrl: string;
+  dryRun: boolean;
+  videoFactoryPath: string;
+  command?: string;
+  envLocalExists: boolean;
+  childProcessPixverseKeyPresent: boolean;
+};
+
+export type ImageGenerationMode = "mock" | "dry-run" | "real";
+
+export type GenerateReferenceImagesOptions = {
+  batchId: string;
+  promptDir: string;
+  mode: ImageGenerationMode;
+  limit?: number;
+  modelLimit?: number;
+  models?: string[];
+  bridgeUrl: string;
+  apiKey?: string;
+  confirmRealRun?: boolean;
+};
+
+export type GenerateReferenceImagesResult = {
+  ok: boolean;
+  mode: ImageGenerationMode;
+  submitted: number;
+  synced: number;
+  imported: number;
+  imageResultPath?: string;
+  syncResultPath?: string;
+  importedImages: Array<{
+    itemId: string;
+    sourcePath: string;
+    localPath: string;
+    previewUrl: string;
+  }>;
+  commandLogs: Array<{
+    command: string;
+    stdout: string;
+    stderr: string;
+    runtimeDiagnostics?: VideoFactoryRuntimeDiagnostics;
+  }>;
+  errorCode?: string;
+  message?: string;
+  runtimeDiagnostics?: VideoFactoryRuntimeDiagnostics;
+  zipPath?: string;
+  extractedDir?: string;
+  foundImageCount?: number;
+  firstImagePath?: string;
+  targetCopyPath?: string;
+  copyError?: string;
+};
+
+export type SyncRealImagesOptions = {
+  batchId: string;
+  limit?: number;
+  existingOnly?: boolean;
 };
 
 export type SubmitImagesOptions = {
@@ -36,11 +113,14 @@ export type SyncRelaxImagesOptions = {
 };
 
 export type SubmitVideosOptions = {
+  batchId: string;
   promptDir: string;
   imageUrlMapPath: string;
+  bridgeUrl?: string;
   remote?: boolean;
   dryRun?: boolean;
   limit?: number;
+  modelLimit?: number;
   confirmedRemote?: boolean;
   confirmedFullBatch?: boolean;
 };

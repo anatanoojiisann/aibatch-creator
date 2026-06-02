@@ -72,6 +72,7 @@ async function main() {
   assert(existsSync(mapped.imageUrlMapPath), "Expected image-url-map.json.");
 
   const videoSubmit = await adapter.submitVideos({
+    batchId: created.id,
     promptDir: promptResult.promptDir,
     imageUrlMapPath: mapped.imageUrlMapPath,
     dryRun: true,
@@ -89,14 +90,18 @@ async function main() {
         ...item,
         generation: {
           ...item.generation,
-          status: "video_succeeded" as const,
+          status: "video_mocked" as const,
           videoJobId: `mock_video_${item.id}`,
-          videoUrl: `https://your-domain.example/videos/${submitted.id}/${item.id}.mp4`
+          videoUrl: `https://your-domain.example/videos/${submitted.id}/${item.id}.mp4`,
+          errorCode: "MOCK_VIDEO_ONLY",
+          errorMessage: "No real video has been generated yet. This is a mock placeholder result."
         }
       }
       : item)
   });
   const watermarked = await sendSuccessfulVideosToWatermark(videoReady, true);
+  assert(watermarked.items.every((item) => item.postProcessing.watermarkStatus !== "done"), "Mock videos must not be watermarked as real output.");
+  assert(watermarked.status !== "completed", "Mock videos must not complete the workflow.");
   const report = await exportFinalReport(watermarked.id);
 
   const summary = {

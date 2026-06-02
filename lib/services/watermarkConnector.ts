@@ -1,13 +1,18 @@
+import { existsSync, statSync } from "node:fs";
+import path from "node:path";
 import { saveBatch } from "@/lib/services/batchService";
 import { VideoBatch } from "@/lib/schemas/videoBatch.schema";
+import { isRealMp4Url } from "@/lib/services/videoAssetValidation";
 
 export async function sendSuccessfulVideosToWatermark(batch: VideoBatch, mock = true): Promise<VideoBatch> {
   const items = await Promise.all(batch.items.map(async (item) => {
-    if (item.generation.status !== "video_succeeded" || !item.generation.videoUrl) return item;
+    if (!hasRealGeneratedVideoAsset(item)) return item;
+    const videoUrl = item.generation.videoUrl || item.generation.previewUrl;
+    if (!videoUrl) return item;
     try {
       const processedVideoUrl = mock
-        ? `${item.generation.videoUrl}${item.generation.videoUrl.includes("?") ? "&" : "?"}watermark=removed`
-        : await requestWatermarkRemoval(item.generation.videoUrl);
+        ? `${videoUrl}${videoUrl.includes("?") ? "&" : "?"}watermark=removed`
+        : await requestWatermarkRemoval(videoUrl);
       return {
         ...item,
         postProcessing: {
@@ -28,7 +33,19 @@ export async function sendSuccessfulVideosToWatermark(batch: VideoBatch, mock = 
       };
     }
   }));
-  return saveBatch({ ...batch, status: "completed", items });
+  const hasVideo = items.some(hasRealGeneratedVideoAsset);
+  const hasWatermarkDone = items.some((item) => item.postProcessing.watermarkStatus === "done");
+  return saveBatch({ ...batch, status: hasVideo && hasWatermarkDone ? "completed" : batch.status, items });
+}
+
+export function hasRealGeneratedVideoAsset(item: VideoBatch["items"][number]): boolean {
+  if (item.generation.status !== "video_succeeded") return false;
+  if (isRealMp4Url(item.generation.videoUrl)) return true;
+  const localPath = item.generation.localPath;
+  return Boolean(localPath
+    && path.extname(localPath).toLowerCase() === ".mp4"
+    && existsSync(localPath)
+    && statSync(localPath).size > 0);
 }
 
 async function requestWatermarkRemoval(videoUrl: string): Promise<string> {

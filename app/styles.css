@@ -81,6 +81,23 @@ h2 {
   gap: 16px;
 }
 
+.workflow-layout {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.sidebar {
+  position: sticky;
+  top: 16px;
+}
+
+.flow {
+  display: grid;
+  gap: 16px;
+}
+
 .panel,
 .card {
   background: var(--panel);
@@ -90,6 +107,141 @@ h2 {
 
 .panel {
   padding: 16px;
+}
+
+.step-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.step-kicker {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.summary-grid div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.summary-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.summary-grid strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.summary-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.prompt-editor {
+  margin-top: 12px;
+}
+
+.prompt-editor summary,
+.advanced summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.mode-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+  margin: 12px 0;
+}
+
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.warning-panel {
+  border: 1px solid #f5c97b;
+  border-radius: 8px;
+  background: #fff8eb;
+  padding: 10px;
+  margin-top: 10px;
+}
+
+.provider-warning {
+  border: 1px solid #9cc2ff;
+  border-radius: 8px;
+  background: #eef5ff;
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.provider-facts p,
+.provider-card p {
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+
+.provider-note {
+  border-left: 3px solid var(--accent);
+  padding-left: 10px;
+  color: var(--muted);
+}
+
+.provider-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.provider-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.provider-card-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.provider-card-heading h3 {
+  margin: 0;
+}
+
+.check-field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+  color: var(--muted);
 }
 
 .field {
@@ -152,7 +304,7 @@ h2 {
   display: grid;
   grid-template-columns: 90px 1fr;
   gap: 12px;
-  align-items: start;
+  align-items: flex-start;
 }
 
 .preview {
@@ -173,6 +325,157 @@ h2 {
   object-fit: cover;
 }
 
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.review-card,
+.result-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+}
+
+.review-card h3,
+.result-card h3 {
+  margin: 8px 0 4px;
+}
+
+.review-card p,
+.result-card p {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.result-card video {
+  display: block;
+  width: min(100%, 360px);
+  border-radius: 8px;
+  background: #111827;
+}
+
+.review-preview {
+  width: 100%;
+  aspect-ratio: 9 / 12;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef2f7;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  overflow: hidden;
+}
+
+.review-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reference-grid {
+  margin-top: 14px;
+}
+
+.image-progress {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.image-progress.active {
+  border-color: #9bbcff;
+  background: var(--soft);
+}
+
+.image-progress strong,
+.image-progress span {
+  display: block;
+}
+
+.image-progress span {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.image-state-submitting .review-preview,
+.image-state-syncing .review-preview {
+  background: linear-gradient(90deg, #eef2f7, #f8fafc, #eef2f7);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+.image-state-failed {
+  border-color: #f4b4ad;
+}
+
+.error-box {
+  border: 1px solid #f4b4ad;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff2f0;
+  color: var(--bad);
+  overflow-wrap: anywhere;
+}
+
+.api-error-panel {
+  border: 1px solid #f4b4ad;
+  border-radius: 8px;
+  background: #fff8f7;
+  padding: 12px;
+  margin-top: 12px;
+  color: var(--bad);
+}
+
+.api-error-panel p,
+.api-error-panel ul {
+  margin: 8px 0;
+}
+
+.api-error-panel details {
+  margin-top: 8px;
+}
+
+.api-error-panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #fff;
+  border: 1px solid #f4b4ad;
+  border-radius: 8px;
+  padding: 8px;
+  color: var(--ink);
+  max-height: 220px;
+  overflow: auto;
+}
+
+@keyframes shimmer {
+  from { background-position: 0% 0; }
+  to { background-position: -200% 0; }
+}
+
+.result-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.url-text,
+.report-path {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 8px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
 .notice {
   margin-top: 12px;
   border: 1px solid var(--line);
@@ -189,6 +492,50 @@ h2 {
   padding: 12px;
   margin: 14px 0;
   background: #fff;
+}
+
+.progress-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.progress-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--muted);
+  background: #fff;
+}
+
+.progress-row span {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--bad);
+  font-weight: 700;
+}
+
+.progress-row.done {
+  color: var(--ok);
+  border-color: #b7e4cf;
+  background: #f0fff7;
+}
+
+.progress-row.done span {
+  color: var(--ok);
+}
+
+.next-action {
+  margin-top: 12px;
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--accent);
+  padding: 10px 12px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .checklist ul {
@@ -223,7 +570,12 @@ h2 {
 
 @media (max-width: 900px) {
   .grid,
-  .prompt-grid {
+  .prompt-grid,
+  .workflow-layout {
     grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
   }
 }

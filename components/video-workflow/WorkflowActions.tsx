@@ -30,7 +30,7 @@ export function WorkflowActions({ batch, disabled, onRun, onBlocked }: {
       <button disabled={!batch || disabled || readyIds.length === 0} onClick={() => batch && onRun("/api/video-batches/upload-public-images", { batchId: batch.id, approvedItemIds: readyIds.slice(0, 1) })}>Approve 1 + Mock Upload</button>
       <button disabled={!batch || disabled} onClick={() => batch && onRun("/api/video-batches/generate-image-url-map", { batchId: batch.id })}>Generate Image URL Map</button>
       <button disabled={!canSubmitVideos || disabled} onClick={submitVideos} title={!canSubmitVideos && prerequisites ? nextRecommendedAction(prerequisites) : undefined}>Dry-run Submit Videos</button>
-      <button disabled={!batch || disabled} onClick={() => batch && onRun("/api/video-batches/send-to-watermark", { batchId: batch.id, mock: true, mockSuccess: true })}>Mock Watermark</button>
+      <button disabled={!batch || disabled} onClick={() => batch && onRun("/api/video-batches/send-to-watermark", { batchId: batch.id, mock: true })}>Try Mock Watermark</button>
       <button disabled={!batch || disabled} onClick={() => batch && onRun("/api/video-batches/export-report", { batchId: batch.id })}>Export Report</button>
     </div>
   );

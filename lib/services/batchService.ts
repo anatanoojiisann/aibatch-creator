@@ -3,12 +3,15 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { VideoBatch, VideoBatchSchema, VideoBatchStatus } from "@/lib/schemas/videoBatch.schema";
 import { VideoCreativeItem } from "@/lib/schemas/videoCreativeItem.schema";
+import { normalizeFakeVideoSuccess } from "@/lib/services/videoAssetValidation";
+import { ProviderId } from "@/lib/providers/providerTypes";
 
 export type CreateVideoBatchInput = {
   title?: string;
   sourceTopic: string;
   platform?: VideoBatch["platform"];
   aspectRatio?: VideoBatch["aspectRatio"];
+  selectedProviderId?: ProviderId;
 };
 
 export type GeneratePromptItemsInput = {
@@ -38,6 +41,7 @@ export async function createVideoBatch(input: CreateVideoBatchInput): Promise<Vi
     platform: input.platform || "tiktok",
     aspectRatio: input.aspectRatio || "9:16",
     status: "draft",
+    providerSetup: { selectedProviderId: input.selectedProviderId || "pixverse_official_api" },
     videoFactory: {},
     items: [],
     createdAt: now,
@@ -101,7 +105,7 @@ export async function generateMockVideoCreativeItems(input: GeneratePromptItemsI
         status: "missing"
       },
       generation: {
-        status: "draft"
+        status: "video_draft"
       },
       postProcessing: {
         watermarkStatus: "pending"
@@ -114,11 +118,11 @@ export async function generateMockVideoCreativeItems(input: GeneratePromptItemsI
 export async function loadBatch(batchId: string): Promise<VideoBatch> {
   const filePath = batchManifestPath(batchId);
   if (!existsSync(filePath)) throw new Error(`Batch manifest not found: ${filePath}`);
-  return VideoBatchSchema.parse(JSON.parse(await readFile(filePath, "utf8")));
+  return normalizeFakeVideoSuccess(VideoBatchSchema.parse(JSON.parse(await readFile(filePath, "utf8"))));
 }
 
 export async function saveBatch(batch: VideoBatch): Promise<VideoBatch> {
-  const parsed = VideoBatchSchema.parse({ ...batch, updatedAt: new Date().toISOString() });
+  const parsed = VideoBatchSchema.parse(normalizeFakeVideoSuccess({ ...batch, updatedAt: new Date().toISOString() }));
   await mkdir(batchDir(parsed.id), { recursive: true });
   await writeFile(batchManifestPath(parsed.id), `${JSON.stringify(parsed, null, 2)}\n`);
   return parsed;
@@ -156,6 +160,8 @@ export async function exportFinalReport(batchId: string): Promise<{ batch: Video
     "",
     `- Batch ID: ${batch.id}`,
     `- Status: ${batch.status}`,
+    `- Provider: ${batch.providerSetup?.selectedProviderId || "not selected"}`,
+    `- Provider group: ${batch.items.find((item) => item.generation.providerGroup)?.generation.providerGroup || "not submitted"}`,
     `- Items: ${batch.items.length}`,
     `- Public images: ${batch.items.filter((item) => item.referenceImage.publicUrl).length}`,
     `- Successful videos: ${batch.items.filter((item) => item.generation.status === "video_succeeded").length}`,
@@ -167,6 +173,7 @@ export async function exportFinalReport(batchId: string): Promise<{ batch: Video
       `### ${item.id} - ${item.title}`,
       `- Image: ${item.referenceImage.status}${item.referenceImage.publicUrl ? ` (${item.referenceImage.publicUrl})` : ""}`,
       `- Video: ${item.generation.status}${item.generation.videoUrl ? ` (${item.generation.videoUrl})` : ""}`,
+      `- Video provider: ${item.generation.providerId || batch.providerSetup?.selectedProviderId || "not selected"}`,
       `- Watermark: ${item.postProcessing.watermarkStatus}${item.postProcessing.processedVideoUrl ? ` (${item.postProcessing.processedVideoUrl})` : ""}`
     ].join("\n"))
   ];

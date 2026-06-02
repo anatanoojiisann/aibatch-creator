@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     });
     const manifestPath = await writeCommandManifest(batch.id, "video_factory_image_result.json", result);
     const current = await loadBatch(batch.id);
+    const submitted = result.ok ? current.items.length : 0;
     const updated = await saveBatch({
       ...current,
       status: result.ok ? "image_submitted" : "failed",
@@ -33,8 +34,22 @@ export async function POST(request: Request) {
         }
       }))
     });
-    return NextResponse.json({ ok: result.ok, batch: updated, result });
+    return NextResponse.json({
+      ok: result.ok,
+      batch: updated,
+      batchId: batch.id,
+      submitted,
+      dryRun: body.dryRun !== false,
+      resultPath: manifestPath,
+      message: result.ok ? `Submitted ${submitted} image prompt item(s) in dry-run/mock mode.` : "Image submission failed.",
+      result
+    });
   } catch (error) {
-    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Unknown error" }, { status: 400 });
+    return NextResponse.json({
+      ok: false,
+      errorCode: "SUBMIT_IMAGES_FAILED",
+      message: error instanceof Error ? error.message : "Unknown error",
+      missingRequirements: ["Prompt dir exported"]
+    }, { status: 400 });
   }
 }

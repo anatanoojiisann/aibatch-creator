@@ -1,9 +1,11 @@
 import { VideoBatch } from "@/lib/schemas/videoBatch.schema";
+import { isRealPublicHttpsUrl, realPublicImageUrlMessage } from "@/lib/services/videoAssetValidation";
 
 export type VideoSubmitErrorCode =
   | "PROMPT_DIR_MISSING"
   | "NO_APPROVED_PUBLIC_IMAGES"
-  | "MISSING_IMAGE_URL_MAP";
+  | "MISSING_IMAGE_URL_MAP"
+  | "REAL_PUBLIC_IMAGE_URL_REQUIRED";
 
 export type VideoWorkflowPrerequisites = {
   promptDirExported: boolean;
@@ -11,6 +13,7 @@ export type VideoWorkflowPrerequisites = {
   imagesSynced: boolean;
   atLeastOneImageApproved: boolean;
   publicImageUrlGenerated: boolean;
+  realPublicImageUrlReady: boolean;
   imageUrlMapGenerated: boolean;
   readyToSubmitVideos: boolean;
 };
@@ -25,6 +28,8 @@ export type VideoSubmitValidation = {
 
 const imageSubmittedStatuses = new Set([
   "submitted",
+  "syncing",
+  "waiting_for_real_output",
   "downloaded",
   "ready_for_preview",
   "approved",
@@ -44,6 +49,7 @@ export function getVideoWorkflowPrerequisites(batch: VideoBatch, imageUrlMapFile
   const imagesSynced = batch.items.some((item) => imageSyncedStatuses.has(item.referenceImage.status) && Boolean(item.referenceImage.localPath || item.referenceImage.previewUrl));
   const atLeastOneImageApproved = batch.items.some((item) => item.referenceImage.status === "approved" || item.referenceImage.status === "uploaded_public");
   const publicImageUrlGenerated = batch.items.some((item) => item.referenceImage.status === "uploaded_public" && Boolean(item.referenceImage.publicUrl));
+  const realPublicImageUrlReady = batch.items.some((item) => item.referenceImage.status === "uploaded_public" && isRealPublicHttpsUrl(item.referenceImage.publicUrl));
   const imageUrlMapGenerated = Boolean(batch.videoFactory.imageUrlMapPath)
     && imageUrlMapFileExists;
   const readyToSubmitVideos = promptDirExported && publicImageUrlGenerated && imageUrlMapGenerated;
@@ -53,12 +59,17 @@ export function getVideoWorkflowPrerequisites(batch: VideoBatch, imageUrlMapFile
     imagesSynced,
     atLeastOneImageApproved,
     publicImageUrlGenerated,
+    realPublicImageUrlReady,
     imageUrlMapGenerated,
     readyToSubmitVideos
   };
 }
 
-export function validateVideoSubmitPrerequisites(batch: VideoBatch, imageUrlMapFileExists = true): VideoSubmitValidation {
+export function validateVideoSubmitPrerequisites(
+  batch: VideoBatch,
+  imageUrlMapFileExists = true,
+  options: { requireRealPublicImageUrl?: boolean; imageUrlMap?: Record<string, string> } = {}
+): VideoSubmitValidation {
   const prerequisites = getVideoWorkflowPrerequisites(batch, imageUrlMapFileExists);
   const missingRequirements: string[] = [];
   if (!prerequisites.promptDirExported) missingRequirements.push("Prompt dir exported");
@@ -67,6 +78,7 @@ export function validateVideoSubmitPrerequisites(batch: VideoBatch, imageUrlMapF
   if (!prerequisites.atLeastOneImageApproved) missingRequirements.push("At least one image approved");
   if (!prerequisites.publicImageUrlGenerated) missingRequirements.push("Public image URL generated");
   if (!prerequisites.imageUrlMapGenerated) missingRequirements.push("Image URL map generated");
+  if (options.requireRealPublicImageUrl && !prerequisites.realPublicImageUrlReady) missingRequirements.push("Real public HTTPS image URL");
 
   if (!prerequisites.promptDirExported) {
     return {
@@ -98,6 +110,21 @@ export function validateVideoSubmitPrerequisites(batch: VideoBatch, imageUrlMapF
     };
   }
 
+  if (options.requireRealPublicImageUrl) {
+    const eligibleItems = batch.items.filter((item) => item.referenceImage.status === "uploaded_public" && item.referenceImage.publicUrl);
+    const realMapReady = eligibleItems.length > 0
+      && eligibleItems.every((item) => isRealPublicHttpsUrl(options.imageUrlMap?.[item.id] || item.referenceImage.publicUrl));
+    if (!realMapReady) {
+      return {
+        ok: false,
+        errorCode: "REAL_PUBLIC_IMAGE_URL_REQUIRED",
+        message: realPublicImageUrlMessage,
+        missingRequirements,
+        prerequisites
+      };
+    }
+  }
+
   return {
     ok: true,
     missingRequirements: [],
@@ -106,11 +133,9 @@ export function validateVideoSubmitPrerequisites(batch: VideoBatch, imageUrlMapF
 }
 
 export function nextRecommendedAction(prerequisites: VideoWorkflowPrerequisites): string {
-  if (!prerequisites.promptDirExported) return "Please export the prompt-dir before submitting videos.";
-  if (!prerequisites.imagesSubmitted) return "Please run Dry-run Submit Images before submitting videos.";
-  if (!prerequisites.imagesSynced) return "Please run Mock Sync Images before approving and uploading images.";
-  if (!prerequisites.atLeastOneImageApproved) return "Please approve at least one synced image.";
-  if (!prerequisites.publicImageUrlGenerated) return "Please mock upload at least one approved image to generate a public HTTPS URL.";
-  if (!prerequisites.imageUrlMapGenerated) return "Please generate image-url-map.json before submitting videos.";
+  if (!prerequisites.promptDirExported) return "Next: export prompt-dir.";
+  if (!prerequisites.imagesSubmitted || !prerequisites.imagesSynced) return "Next: generate reference images.";
+  if (!prerequisites.atLeastOneImageApproved || !prerequisites.publicImageUrlGenerated) return "Next: approve at least one image.";
+  if (!prerequisites.imageUrlMapGenerated) return "Next: generate videos from approved images.";
   return "Ready to submit videos.";
 }
