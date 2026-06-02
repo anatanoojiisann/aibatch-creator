@@ -7,7 +7,7 @@ Generated for the provider architecture regression audit. This is an architectur
 | Provider | Implemented | Manifest total | Missing or unverified |
 | --- | ---: | ---: | ---: |
 | PixVerse Official API | 4 | 22 | 18 |
-| PixVerse Web | 0 | 0 observed endpoints | 0 recorded; HAR capture pending |
+| PixVerse Web | 0 | 34 observed endpoints | 34 recorded; sanitized HAR import |
 | Pai Official API | 0 | 1 placeholder entry | 1 |
 | Pai Web | 0 | 0 observed endpoints | 0 recorded; HAR capture pending |
 | Custom Platform | 0 | 1 placeholder entry | 1 |
@@ -49,11 +49,52 @@ Stability: `experimental_web`. Session profile: `PIXVERSE_WEB_SESSION_PROFILE` o
 
 ### PixVerse Web Observed Endpoints
 
-Total observed endpoint count: `0`. Status: `HAR capture pending.` Imported HAR files are sanitized and discarded; raw HAR storage is disabled. Observed endpoints default to `implemented=false`.
+<!-- PIXVERSE_WEB_OBSERVED:START -->
+Total observed endpoint count: `34`.
+Last sanitized HAR import: `2026-06-02T12:45:01.782Z`. Source HAR fingerprint: `b5c2c0bc2b96`.
+Raw HAR persisted: `no`. Secret redaction status: `applied`. Observed endpoints default to `implemented=false`.
+Endpoint IDs: `pixverse_web_unknown_768d7167e1`, `pixverse_web_unknown_f35e68ffd9`, `pixverse_web_unknown_407a70029c`, `pixverse_web_unknown_360075796b`, `pixverse_web_config_2339f731dc`, `pixverse_web_credit_balance_90d1b134a6`, `pixverse_web_task_list_db73f48552`, `pixverse_web_unknown_18200577b9`, `pixverse_web_user_profile_be9d38739b`, `pixverse_web_unknown_90a6b14316`, `pixverse_web_unknown_cd92a1ef12`, `pixverse_web_user_profile_33c9a15710`, `pixverse_web_unknown_f41ed17098`, `pixverse_web_asset_library_bd75a2ebee`, `pixverse_web_user_profile_45a238411c`, `pixverse_web_user_profile_48bc811ef3`, `pixverse_web_unknown_5a747efaee`, `pixverse_web_asset_library_81ff94ff3c`, `pixverse_web_credit_balance_7263e92cae`, `pixverse_web_pricing_d491d4637b`, `pixverse_web_unknown_2ca5e548ff`, `pixverse_web_unknown_1f38f985d7`, `pixverse_web_unknown_88eced8d7b`, `pixverse_web_unknown_5e61bb90c4`, `pixverse_web_unknown_60580b7271`, `pixverse_web_pricing_bb7a7bbfb5`, `pixverse_web_tts_83e0fb1fed`, `pixverse_web_restyle_1128468b87`, `pixverse_web_unknown_c4b322d8d6`, `pixverse_web_pricing_aef703d7aa`, `pixverse_web_unknown_c9e3a3adcf`, `pixverse_web_unknown_35e2046a39`, `pixverse_web_unknown_d8c8986da0`, `pixverse_web_unknown_3a0e550955`.
+Operation guesses: `asset_library`, `config`, `credit_balance`, `pricing`, `restyle`, `task_list`, `tts`, `unknown`, `user_profile`.
+Complete generation flow: `false`.
+Missing operations: `upload image or upload media`, `image-to-video or text-to-video generation creation`, `task status or task detail polling`, `generated result or download result`.
 
-| Endpoint ID | Capability | Implemented | Docs/source URL or HAR source | Stability | Missing request schema | Missing response schema | Real test executed |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `none_observed_yet` | `none` | `false` | `Manual HAR source not recorded yet` | `experimental_web` | `yes` | `yes` | `no` |
+| Endpoint ID | Operation guess | Method | Host and path | Samples | Status codes | Implemented | Stability |
+| --- | --- | --- | --- | ---: | --- | --- | --- |
+| `pixverse_web_unknown_768d7167e1` | `unknown` | `GET` | `app.pixverse.ai/manifest.webmanifest` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_f35e68ffd9` | `unknown` | `POST` | `www.google.com/ccm/collect` | `4` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_407a70029c` | `unknown` | `POST` | `www.google.com/rmkt/collect/{id}/` | `4` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_360075796b` | `unknown` | `GET` | `www.googleadservices.com/pagead/conversion/{id}/` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_config_2339f731dc` | `config` | `POST` | `app-api.pixverse.ai/creative_platform/config` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_credit_balance_90d1b134a6` | `credit_balance` | `GET` | `app-api.pixverse.ai/creative_platform/config/ad_credits` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_task_list_db73f48552` | `task_list` | `GET` | `app-api.pixverse.ai/creative_platform/task/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_18200577b9` | `unknown` | `GET` | `app-api.pixverse.ai/creative_platform/invite/bonus/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_user_profile_be9d38739b` | `user_profile` | `POST` | `app-api.pixverse.ai/creative_platform/invite/account/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_90a6b14316` | `unknown` | `POST` | `app-api.pixverse.ai/creative_platform/internal_message/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_cd92a1ef12` | `unknown` | `POST` | `app-api.pixverse.ai/creative_platform/asset/library/models` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_user_profile_33c9a15710` | `user_profile` | `GET` | `app-api.pixverse.ai/creative_platform/getUserInfo` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_f41ed17098` | `unknown` | `GET` | `app-api.pixverse.ai/creative_platform/team/workspace/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_asset_library_bd75a2ebee` | `asset_library` | `POST` | `app-api.pixverse.ai/creative_platform/asset/library/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_user_profile_45a238411c` | `user_profile` | `GET` | `www.google.com/pagead/1p-user-list/{id}/` | `4` | `200` | `false` | `experimental_web` |
+| `pixverse_web_user_profile_48bc811ef3` | `user_profile` | `GET` | `www.google.com.sg/pagead/1p-user-list/{id}/` | `4` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_5a747efaee` | `unknown` | `POST` | `experiment.pixverse.ai/api/v2/abtest/online/results` | `3` | `200` | `false` | `experimental_web` |
+| `pixverse_web_asset_library_81ff94ff3c` | `asset_library` | `GET` | `app-api.pixverse.ai/creative_platform/asset/folder/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_credit_balance_7263e92cae` | `credit_balance` | `GET` | `app-api.pixverse.ai/creative_platform/user/credits` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_pricing_d491d4637b` | `pricing` | `POST` | `app-api.pixverse.ai/creative_platform/toc/members/plan_details` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_2ca5e548ff` | `unknown` | `POST` | `app-api.pixverse.ai/creative_platform/toc/products/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_1f38f985d7` | `unknown` | `GET` | `app-api.pixverse.ai/creative_platform/feedback/tags` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_88eced8d7b` | `unknown` | `GET` | `app-api.pixverse.ai/creative_platform/banners` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_5e61bb90c4` | `unknown` | `GET` | `app-api.pixverse.ai/creative_platform/showvideos` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_60580b7271` | `unknown` | `GET` | `app-api.pixverse.ai/creative_platform/content/categories/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_pricing_bb7a7bbfb5` | `pricing` | `POST` | `app-api.pixverse.ai/creative_platform/pricing/formulas` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_tts_83e0fb1fed` | `tts` | `GET` | `app-api.pixverse.ai/creative_platform/video/tts/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_restyle_1128468b87` | `restyle` | `POST` | `app-api.pixverse.ai/creative_platform/restyle/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_c4b322d8d6` | `unknown` | `GET` | `app-api.pixverse.ai/creative_platform/content/categories/secondary` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_pricing_aef703d7aa` | `pricing` | `GET` | `app-api.pixverse.ai/creative_platform/content/template/price/multiplier` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_c9e3a3adcf` | `unknown` | `GET` | `app-api.pixverse.ai/creative_platform/campaign/list` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_35e2046a39` | `unknown` | `POST` | `app.pixverse.ai/cdn-cgi/rum` | `1` | `204` | `false` | `experimental_web` |
+| `pixverse_web_unknown_d8c8986da0` | `unknown` | `POST` | `www.google.com/pagead/form-data/{id}` | `1` | `200` | `false` | `experimental_web` |
+| `pixverse_web_unknown_3a0e550955` | `unknown` | `POST` | `www.google.com/ccm/form-data/{id}` | `1` | `204` | `false` | `experimental_web` |
+<!-- PIXVERSE_WEB_OBSERVED:END -->
 
 ## Pai Official API
 
@@ -69,11 +110,13 @@ Stability: `experimental_web`. Session profile: `PAI_WEB_SESSION_PROFILE` only. 
 
 ### Pai Web Observed Endpoints
 
+<!-- PAI_WEB_OBSERVED:START -->
 Total observed endpoint count: `0`. Status: `HAR capture pending.` Imported HAR files are sanitized and discarded; raw HAR storage is disabled. Observed endpoints default to `implemented=false`.
 
 | Endpoint ID | Capability | Implemented | Docs/source URL or HAR source | Stability | Missing request schema | Missing response schema | Real test executed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `none_observed_yet` | `none` | `false` | `Manual HAR source not recorded yet` | `experimental_web` | `yes` | `yes` | `no` |
+<!-- PAI_WEB_OBSERVED:END -->
 
 ## Custom Platform
 

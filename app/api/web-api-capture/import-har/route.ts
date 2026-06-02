@@ -27,6 +27,7 @@ export async function POST(request: Request) {
       observedRequestCount: report.observedRequestCount,
       observedEndpointCount: report.observedEndpointCount,
       endpoints: report.endpoints,
+      coverage: report.coverage,
       reportPath,
       previewOnly,
       message: previewOnly

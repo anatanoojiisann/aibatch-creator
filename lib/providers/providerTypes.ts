@@ -60,6 +60,7 @@ export type ProviderEndpointManifestEntry = {
   sanitizedRequestShape?: string;
   sanitizedResponseShape?: string;
   sourceHarFingerprint?: string;
+  source?: "har";
 };
 
 export type ProviderDefinition = {

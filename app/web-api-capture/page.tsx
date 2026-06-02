@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type ImportResult = {
   ok?: boolean;
@@ -20,7 +20,14 @@ type ImportResult = {
     operationGuess?: string;
     implemented: boolean;
     stability: string;
+    sanitizedRequestShape?: string;
+    sanitizedResponseShape?: string;
   }>;
+  coverage?: {
+    completeGenerationFlow: boolean;
+    missingOperations: string[];
+    missingGenerationFlowOperations: string[];
+  };
 };
 
 export default function WebApiCapturePage() {
@@ -29,6 +36,17 @@ export default function WebApiCapturePage() {
   const [previewOnly, setPreviewOnly] = useState(false);
   const [result, setResult] = useState<ImportResult>();
   const [busy, setBusy] = useState(false);
+  const [savedReports, setSavedReports] = useState<ImportResult[]>([]);
+
+  async function loadSavedReports() {
+    const response = await fetch("/api/web-api-capture");
+    const data = await response.json() as { reports?: ImportResult[] };
+    setSavedReports(data.reports || []);
+  }
+
+  useEffect(() => {
+    void loadSavedReports();
+  }, []);
 
   async function importHar() {
     if (!file) return;
@@ -40,6 +58,7 @@ export default function WebApiCapturePage() {
       body.append("previewOnly", String(previewOnly));
       const response = await fetch("/api/web-api-capture/import-har", { method: "POST", body });
       setResult(await response.json() as ImportResult);
+      await loadSavedReports();
     } finally {
       setBusy(false);
     }
@@ -83,6 +102,10 @@ export default function WebApiCapturePage() {
         {result ? <CaptureResult result={result} /> : <p className="muted">HAR capture pending.</p>}
       </section>
       <section className="panel">
+        <h2>Saved sanitized summaries</h2>
+        {savedReports.length ? savedReports.map((report) => <CaptureResult key={report.providerId} result={{ ...report, ok: true, message: `${report.providerId} sanitized HAR summary.` }} />) : <p className="muted">HAR capture pending.</p>}
+      </section>
+      <section className="panel">
         <h2>Manual capture steps</h2>
         <ol>
           <li>Open PixVerse or Pai in your browser.</li>
@@ -109,9 +132,18 @@ function CaptureResult({ result }: { result: ImportResult }) {
           <p><strong>Source fingerprint:</strong> {result.sourceHarFingerprint}</p>
           <p><strong>Requests:</strong> {result.observedRequestCount}; <strong>endpoints:</strong> {result.observedEndpointCount}</p>
           <p><strong>Secret redaction:</strong> {result.secretRedactionStatus}; <strong>raw HAR stored:</strong> {String(result.rawHarStored)}</p>
+          <p><strong>Complete generation flow:</strong> {String(result.coverage?.completeGenerationFlow || false)}</p>
+          {result.coverage?.missingOperations.length ? <p><strong>Missing operations:</strong> {result.coverage.missingOperations.join(", ")}</p> : null}
+          <div className="capture-table">
+            <strong>Observed endpoint classification</strong>
           {result.endpoints?.map((endpoint) => (
-            <p key={endpoint.id}><code>{endpoint.method} {endpoint.host}{endpoint.path}</code> - {endpoint.operationGuess} - implemented={String(endpoint.implemented)} - {endpoint.stability}</p>
+            <details key={endpoint.id}>
+              <summary><code>{endpoint.method} {endpoint.host}{endpoint.path}</code> - {endpoint.operationGuess} - implemented={String(endpoint.implemented)} - {endpoint.stability}</summary>
+              <pre>{endpoint.sanitizedRequestShape}</pre>
+              <pre>{endpoint.sanitizedResponseShape}</pre>
+            </details>
           ))}
+          </div>
         </>
       ) : null}
     </div>

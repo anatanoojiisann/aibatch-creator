@@ -25,6 +25,8 @@ import { parsePixVerseWebHar } from "@/lib/providers/pixverseWeb/pixverseWebHarP
 import { parsePaiWebHar } from "@/lib/providers/paiWeb/paiWebHarParser";
 import { PixVerseWebAdapter } from "@/lib/providers/pixverseWeb/pixverseWebAdapter";
 import { PaiWebAdapter } from "@/lib/providers/paiWeb/paiWebAdapter";
+import { pixverseWebObservedEndpointManifest } from "@/lib/providers/pixverseWeb/pixverseWebObservedEndpointManifest";
+import { paiWebObservedEndpointManifest } from "@/lib/providers/paiWeb/paiWebObservedEndpointManifest";
 import {
   getProviderSettingsDiagnostics,
   saveProviderSettings,
@@ -110,7 +112,7 @@ async function main() {
       entries: [{
         request: {
           method: "POST",
-          url: "https://web.example.invalid/api/image-to-video?token=query-secret&item=item_001",
+          url: "https://web.example.invalid/api/image-to-video/123?token=query-secret&item=item_001",
           headers: [
             { name: "Cookie", value: "session=secret" },
             { name: "Authorization", value: "Bearer secret" },
@@ -126,6 +128,24 @@ async function main() {
           headers: [{ name: "Set-Cookie", value: "session=response-secret" }],
           content: { mimeType: "application/json", text: JSON.stringify({ refresh_token: "response-secret", task_id: "safe-task" }) }
         }
+      }, {
+        request: {
+          method: "POST",
+          url: "https://web.example.invalid/api/image-to-video/456?item=item_002",
+          headers: [{ name: "Content-Type", value: "application/json" }],
+          postData: { mimeType: "application/json", text: JSON.stringify({ prompt: "second neutral prompt", seed: 42 }) }
+        },
+        response: {
+          status: 202,
+          headers: [{ name: "Content-Type", value: "application/json" }],
+          content: { mimeType: "application/json", text: JSON.stringify({ task_id: "safe-task-2", status: "queued" }) }
+        }
+      }, {
+        request: { method: "GET", url: "https://web.example.invalid/assets/app.js", headers: [] },
+        response: { status: 200, headers: [{ name: "Content-Type", value: "text/javascript" }] }
+      }, {
+        request: { method: "POST", url: "https://analytics.example.invalid/collect", headers: [] },
+        response: { status: 204, headers: [] }
       }]
     }
   };
@@ -147,6 +167,13 @@ async function main() {
   assert.equal(paiHar.endpoints[0].providerId, "pai_web");
   assert.equal(pixverseHar.endpoints[0].operationGuess, "image_to_video");
   assert.equal(paiHar.endpoints[0].operationGuess, "image_to_video");
+  assert.equal(pixverseHar.endpoints[0].path, "/api/image-to-video/{id}");
+  assert.equal(pixverseHar.endpoints[0].sampleCount, 2);
+  assert.deepEqual(pixverseHar.endpoints[0].statusCodesObserved.sort(), [200, 202]);
+  assert.equal(pixverseHar.endpoints[0].source, "har");
+  assert.equal(pixverseHar.coverage.completeGenerationFlow, false);
+  assert(pixverseHar.coverage.missingGenerationFlowOperations.includes("task status or task detail polling"));
+  assert(pixverseHar.coverage.missingGenerationFlowOperations.includes("generated result or download result"));
   assert.equal(pixverseHar.endpoints[0].implemented, false);
   assert.equal(paiHar.endpoints[0].implemented, false);
   assert.equal(pixverseHar.endpoints[0].stability, "experimental_web");
@@ -281,8 +308,18 @@ async function main() {
   assert(pixverseOfficial.endpointManifest.filter((endpoint) => !endpoint.implemented).every((endpoint) => !pixverseOfficial.capabilities.includes(endpoint.capability)));
   assert.equal(getProviderDefinition("pai_official_api").endpointManifest.filter((endpoint) => endpoint.implemented).length, 0);
   assert.equal(getProviderDefinition("pai_official_api").endpointManifest.length, 1);
+  assert(pixverseWebObservedEndpointManifest.length > 0);
+  assert(pixverseWebObservedEndpointManifest.every((endpoint) => endpoint.providerId === "pixverse_web"));
+  assert(pixverseWebObservedEndpointManifest.every((endpoint) => endpoint.implemented === false));
+  assert(pixverseWebObservedEndpointManifest.every((endpoint) => endpoint.stability === "experimental_web"));
+  assert(pixverseWebObservedEndpointManifest.every((endpoint) => endpoint.source === "har"));
+  assert.equal(paiWebObservedEndpointManifest.length, 0);
+  const coverageReport = readFileSync("storage/provider-endpoint-coverage-report.md", "utf8");
+  assert(coverageReport.includes("Complete generation flow: `false`."));
+  assert(coverageReport.includes("`upload image or upload media`"));
+  assert(coverageReport.includes("`image-to-video or text-to-video generation creation`"));
 
-  console.log(JSON.stringify({ ok: true, providerIds: providers.map((provider) => provider.id), checks: 70 }, null, 2));
+  console.log(JSON.stringify({ ok: true, providerIds: providers.map((provider) => provider.id), checks: 79 }, null, 2));
 }
 
 main().catch((error) => {
