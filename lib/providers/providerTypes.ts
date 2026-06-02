@@ -30,7 +30,8 @@ export type ProviderCapability =
   | "modify_video"
   | "image_template"
   | "image_status"
-  | "media_upload";
+  | "media_upload"
+  | "unknown";
 
 export type ProviderEndpointManifestEntry = {
   id: string;
@@ -46,8 +47,19 @@ export type ProviderEndpointManifestEntry = {
   requestSchema: string;
   responseSchema: string;
   implemented: boolean;
-  stability: "official" | "stable" | "experimental" | "incomplete";
+  stability: "official" | "stable" | "experimental" | "experimental_web" | "incomplete";
   notes: string;
+  host?: string;
+  queryShape?: string;
+  requestContentType?: string;
+  responseContentType?: string;
+  statusCodesObserved?: number[];
+  operationGuess?: string;
+  lastObservedAt?: string;
+  sampleCount?: number;
+  sanitizedRequestShape?: string;
+  sanitizedResponseShape?: string;
+  sourceHarFingerprint?: string;
 };
 
 export type ProviderDefinition = {

@@ -1,20 +1,9 @@
 import { redactHarSecrets } from "@/lib/providers/shared/webHar/redactHarSecrets";
+import { parseObservedWebEndpoints } from "@/lib/providers/shared/webHar/parseObservedWebEndpoints";
 
-export type PaiWebHarObservation = {
-  providerId: "pai_web";
-  redactedHar: unknown;
-  observedRequestCount: number;
-};
-
-export function parsePaiWebHar(har: unknown): PaiWebHarObservation {
+export function parsePaiWebHar(har: unknown, sourceFileName?: string) {
   return {
-    providerId: "pai_web",
-    redactedHar: redactHarSecrets(har),
-    observedRequestCount: requestCount(har)
+    ...parseObservedWebEndpoints("pai_web", har, sourceFileName),
+    redactedHar: redactHarSecrets(har)
   };
-}
-
-function requestCount(har: unknown): number {
-  const entries = (har as { log?: { entries?: unknown[] } })?.log?.entries;
-  return Array.isArray(entries) ? entries.length : 0;
 }

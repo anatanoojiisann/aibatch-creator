@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { getCreditBalance } from "@/lib/providers/providerBalance";
 import { assertProviderAssetScope } from "@/lib/providers/providerAsset";
 import { requireProviderCapability } from "@/lib/providers/providerCapability";
@@ -23,6 +25,11 @@ import { parsePixVerseWebHar } from "@/lib/providers/pixverseWeb/pixverseWebHarP
 import { parsePaiWebHar } from "@/lib/providers/paiWeb/paiWebHarParser";
 import { PixVerseWebAdapter } from "@/lib/providers/pixverseWeb/pixverseWebAdapter";
 import { PaiWebAdapter } from "@/lib/providers/paiWeb/paiWebAdapter";
+import {
+  getProviderSettingsDiagnostics,
+  saveProviderSettings,
+  testProviderSettingsConnection
+} from "@/lib/providers/providerSettings";
 
 async function main() {
   const expectedPixVerseOfficialEndpointIds = [
@@ -98,13 +105,71 @@ async function main() {
   assert(getProviderDefinition("pai_official_api").endpointManifest.every((endpoint) => !endpoint.implemented));
   assert(getProviderDefinition("pai_official_api").endpointManifest.every((endpoint) => !endpoint.path || !pixversePaths.has(endpoint.path)));
 
-  const har = { log: { entries: [{ request: { headers: [{ name: "Cookie", value: "session=secret" }, { name: "Authorization", value: "Bearer secret" }] } }] } };
+  const har = {
+    log: {
+      entries: [{
+        request: {
+          method: "POST",
+          url: "https://web.example.invalid/api/image-to-video?token=query-secret&item=item_001",
+          headers: [
+            { name: "Cookie", value: "session=secret" },
+            { name: "Authorization", value: "Bearer secret" },
+            { name: "Content-Type", value: "application/json" }
+          ],
+          postData: {
+            mimeType: "application/json",
+            text: JSON.stringify({ access_token: "body-secret", prompt: "neutral prompt", email: "private@example.invalid" })
+          }
+        },
+        response: {
+          status: 200,
+          headers: [{ name: "Set-Cookie", value: "session=response-secret" }],
+          content: { mimeType: "application/json", text: JSON.stringify({ refresh_token: "response-secret", task_id: "safe-task" }) }
+        }
+      }]
+    }
+  };
   const pixverseHar = parsePixVerseWebHar(har);
   const paiHar = parsePaiWebHar(har);
   assert.equal(pixverseHar.providerId, "pixverse_web");
   assert.equal(paiHar.providerId, "pai_web");
-  assert(!JSON.stringify(pixverseHar).includes("session=secret"));
-  assert(!JSON.stringify(paiHar).includes("Bearer secret"));
+  const pixverseHarJson = JSON.stringify(pixverseHar);
+  const paiHarJson = JSON.stringify(paiHar);
+  assert(!pixverseHarJson.includes("session=secret"));
+  assert(!pixverseHarJson.includes("Bearer secret"));
+  assert(!pixverseHarJson.includes("query-secret"));
+  assert(!pixverseHarJson.includes("body-secret"));
+  assert(!pixverseHarJson.includes("private@example.invalid"));
+  assert(!paiHarJson.includes("response-secret"));
+  assert.equal(pixverseHar.endpoints.length, 1);
+  assert.equal(paiHar.endpoints.length, 1);
+  assert.equal(pixverseHar.endpoints[0].providerId, "pixverse_web");
+  assert.equal(paiHar.endpoints[0].providerId, "pai_web");
+  assert.equal(pixverseHar.endpoints[0].operationGuess, "image_to_video");
+  assert.equal(paiHar.endpoints[0].operationGuess, "image_to_video");
+  assert.equal(pixverseHar.endpoints[0].implemented, false);
+  assert.equal(paiHar.endpoints[0].implemented, false);
+  assert.equal(pixverseHar.endpoints[0].stability, "experimental_web");
+  assert.equal(paiHar.endpoints[0].stability, "experimental_web");
+
+  const settingsDir = mkdtempSync(path.join(tmpdir(), "aibatch-provider-settings-"));
+  const settingsPath = path.join(settingsDir, ".env.local");
+  try {
+    const saved = saveProviderSettings("pixverse_official_api", {
+      PIXVERSE_OFFICIAL_API_KEY: "saved-pixverse-test-key",
+      PIXVERSE_OFFICIAL_BASE_URL: "https://app-api.pixverse.ai"
+    }, settingsPath);
+    assert(!JSON.stringify(saved).includes("saved-pixverse-test-key"));
+    assert.throws(() => saveProviderSettings("pixverse_official_api", { PAI_OFFICIAL_API_KEY: "wrong-scope" }, settingsPath), /not allowed/);
+    const savedDiagnostics = getProviderSettingsDiagnostics(settingsPath);
+    const savedPixverse = savedDiagnostics.find((entry) => entry.id === "pixverse_official_api");
+    const savedPai = savedDiagnostics.find((entry) => entry.id === "pai_official_api");
+    assert.equal(savedPixverse?.fields.find((field) => field.envKey === "PIXVERSE_OFFICIAL_API_KEY")?.fingerprint?.present, true);
+    assert.equal(savedPai?.fields.find((field) => field.envKey === "PAI_OFFICIAL_API_KEY")?.fingerprint?.present, true);
+    assert(!JSON.stringify(savedDiagnostics).includes("saved-pixverse-test-key"));
+  } finally {
+    rmSync(settingsDir, { recursive: true, force: true });
+  }
 
   let requestedUrl = "";
   let requestedKey = "";
@@ -125,6 +190,25 @@ async function main() {
     errorCode: "PROVIDER_CAPABILITY_UNSUPPORTED",
     providerId: "pai_official_api",
     capability: "credit_balance"
+  });
+  requestedUrl = "";
+  const settingsConnection = await testProviderSettingsConnection("pixverse_official_api", fakeFetch);
+  assert.equal(settingsConnection.ok, true);
+  assert(requestedUrl.endsWith("/openapi/v2/account/balance"));
+  assert(!requestedUrl.includes("/generate"));
+  assert.deepEqual(await testProviderSettingsConnection("pai_official_api", fakeFetch), {
+    ok: false,
+    providerId: "pai_official_api",
+    keyFingerprint: {
+      present: true,
+      length: "pai-secret-for-test".length,
+      masked: "pai-...test",
+      sha256Prefix: "649997c1bb33"
+    },
+    baseUrl: "",
+    capabilityTested: "none",
+    status: "unsupported_scaffold",
+    sanitizedError: "Pai Official API connection testing is not available until its endpoint contract is configured."
   });
 
   const pixverseAsset: ProviderAsset = {
@@ -162,6 +246,19 @@ async function main() {
   const workflowPage = readFileSync("app/video-workflow/page.tsx", "utf8");
   assert(workflowPage.includes('<optgroup label="PixVerse">'));
   assert(workflowPage.includes('<optgroup label="Pai">'));
+  assert(workflowPage.includes("Configure provider in Provider Settings"));
+  assert(workflowPage.includes("!selectedProviderConfigReady"));
+  assert(workflowPage.includes("There is no silent VideoFactory fallback."));
+  const settingsSaveRoute = readFileSync("app/api/provider-settings/save/route.ts", "utf8");
+  assert(settingsSaveRoute.includes("saveProviderSettings"));
+  const settingsTestRoute = readFileSync("app/api/provider-settings/test/route.ts", "utf8");
+  assert(settingsTestRoute.includes("testProviderSettingsConnection"));
+  assert(!settingsTestRoute.includes("submitImageToVideo"));
+  const capturePage = readFileSync("app/web-api-capture/page.tsx", "utf8");
+  assert(capturePage.includes("Experimental manual HAR only."));
+  assert(capturePage.includes("No CAPTCHA bypass. No stealth. No automated scraping."));
+  const gitignore = readFileSync(".gitignore", "utf8");
+  assert(gitignore.includes(".env.local"));
   const submitRoute = readFileSync("app/api/video-batches/submit-videos/route.ts", "utf8");
   assert(submitRoute.indexOf("return submitSelectedProviderRealVideo") < submitRoute.indexOf("createVideoFactoryAdapter().submitVideos"));
   assert(submitRoute.includes('status: "video_mocked" as const'));
@@ -185,7 +282,7 @@ async function main() {
   assert.equal(getProviderDefinition("pai_official_api").endpointManifest.filter((endpoint) => endpoint.implemented).length, 0);
   assert.equal(getProviderDefinition("pai_official_api").endpointManifest.length, 1);
 
-  console.log(JSON.stringify({ ok: true, providerIds: providers.map((provider) => provider.id), checks: 40 }, null, 2));
+  console.log(JSON.stringify({ ok: true, providerIds: providers.map((provider) => provider.id), checks: 70 }, null, 2));
 }
 
 main().catch((error) => {

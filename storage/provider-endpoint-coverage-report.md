@@ -47,6 +47,10 @@ Scope: all 22 endpoint pages listed under API Reference at `https://docs.platfor
 
 Stability: `experimental_web`. Session profile: `PIXVERSE_WEB_SESSION_PROFILE` only. Automatic web actions: disabled. Real tests executed: `no`.
 
+### PixVerse Web Observed Endpoints
+
+Total observed endpoint count: `0`. Status: `HAR capture pending.` Imported HAR files are sanitized and discarded; raw HAR storage is disabled. Observed endpoints default to `implemented=false`.
+
 | Endpoint ID | Capability | Implemented | Docs/source URL or HAR source | Stability | Missing request schema | Missing response schema | Real test executed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `none_observed_yet` | `none` | `false` | `Manual HAR source not recorded yet` | `experimental_web` | `yes` | `yes` | `no` |
@@ -62,6 +66,10 @@ Stability: `scaffold`. Credentials: `PAI_OFFICIAL_API_KEY` only. PixVerse endpoi
 ## Pai Web
 
 Stability: `experimental_web`. Session profile: `PAI_WEB_SESSION_PROFILE` only. Automatic web actions: disabled. Real tests executed: `no`.
+
+### Pai Web Observed Endpoints
+
+Total observed endpoint count: `0`. Status: `HAR capture pending.` Imported HAR files are sanitized and discarded; raw HAR storage is disabled. Observed endpoints default to `implemented=false`.
 
 | Endpoint ID | Capability | Implemented | Docs/source URL or HAR source | Stability | Missing request schema | Missing response schema | Real test executed |
 | --- | --- | --- | --- | --- | --- | --- | --- |

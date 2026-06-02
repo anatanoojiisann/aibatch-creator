@@ -16,7 +16,11 @@ export default function ProviderDiagnosticsPage() {
           <h1>Provider Diagnostics</h1>
           <p className="muted">Provider credentials, balances, endpoint manifests, and account scopes remain isolated.</p>
         </div>
-        <Link href="/video-workflow">Back to workflow</Link>
+        <div className="actions">
+          <Link href="/provider-settings">Provider settings</Link>
+          <Link href="/web-api-capture">Web API capture</Link>
+          <Link href="/video-workflow">Back to workflow</Link>
+        </div>
       </div>
       <div className="provider-warning">
         PixVerse and Pai use separate accounts and separate credits. Pai diagnostics never use PixVerse credentials or PixVerse balance.
@@ -36,11 +40,12 @@ export default function ProviderDiagnosticsPage() {
                   <p><strong>Account scope:</strong> {provider.accountScope}</p>
                   <p><strong>Source:</strong> {provider.source === "official_api" ? "official API" : "web"}</p>
                   <p><strong>Credential status:</strong> {provider.credentialStatus}</p>
+                  <p><strong>Base URL:</strong> {provider.baseUrlConfigured ? provider.baseUrl : "not configured"}</p>
                   <p><strong>Balance status:</strong> {provider.balanceStatus}</p>
                   {provider.credentials.map((credential) => (
                     <p key={credential.envKey}><strong>{credential.envKey} fingerprint:</strong> {credential.present ? `${credential.masked} / ${credential.sha256Prefix}` : "not configured"}</p>
                   ))}
-                  {provider.source === "web" ? <p><strong>Session mode:</strong> {provider.sessionMode}; profile key: {provider.sessionProfileEnvKey}; cookies and tokens are never displayed.</p> : null}
+                  {provider.source === "web" ? <p><strong>Session mode:</strong> {provider.sessionMode}; observed endpoints: {provider.observedEndpointCount}; profile key: {provider.sessionProfileEnvKey}; cookies and tokens are never displayed.</p> : null}
                   <details>
                     <summary>Endpoint manifest ({provider.endpointManifest.length})</summary>
                     {provider.endpointManifest.length === 0 ? <p>No observed endpoints recorded yet.</p> : provider.endpointManifest.map((endpoint) => (

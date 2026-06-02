@@ -7,6 +7,8 @@ playwright-report/
 *.tsbuildinfo
 storage/video-batches/*
 !storage/video-batches/.gitkeep
+storage/web-api-capture/*
+!storage/web-api-capture/.gitkeep
 
 .env.*
 

@@ -105,6 +105,10 @@ export default function VideoWorkflowPage() {
     || item.generation.status === "video_submitted"
         || item.generation.status === "video_generating"));
   const selectedProvider = getProviderDefinition(providerId);
+  const selectedProviderDiagnostic = providerDiagnostics.find((entry) => entry.id === providerId);
+  const selectedProviderConfigReady = selectedProvider.source === "official_api"
+    && selectedProviderDiagnostic?.credentialStatus === "configured"
+    && selectedProviderDiagnostic.baseUrlConfigured;
   const canSyncRealImagesAgain = Boolean(imageMode === "real"
     && batch?.items.some((item) =>
       !item.referenceImage.localPath
@@ -345,6 +349,8 @@ export default function VideoWorkflowPage() {
           <WorkflowProgress progress={progress} />
           <div className="next-action">{nextAction}</div>
           <Link href="/provider-diagnostics">Provider diagnostics</Link>
+          <Link href="/provider-settings">Provider settings</Link>
+          <Link href="/web-api-capture">Web API capture</Link>
           {message ? <div className="notice" role="status">{message}</div> : null}
         </aside>
 
@@ -352,7 +358,7 @@ export default function VideoWorkflowPage() {
           <StepCard step="0" title="Provider Setup" done={Boolean(providerId)}>
             <ProviderSetupPanel
               providerId={providerId}
-              diagnostic={providerDiagnostics.find((entry) => entry.id === providerId)}
+              diagnostic={selectedProviderDiagnostic}
               disabled={busy}
               onProvider={selectProvider}
             />
@@ -425,7 +431,7 @@ export default function VideoWorkflowPage() {
                   <input disabled={busy} checked={confirmProviderUpload} type="checkbox" onChange={(event) => setConfirmProviderUpload(event.target.checked)} />
                   <span>I understand this will upload one real image to the selected provider.</span>
                 </label>
-                <button disabled={!batch || busy || !confirmProviderUpload || !batch.items.some((item) => item.referenceImage.localPath && ["ready_for_preview", "approved", "uploaded_public"].includes(item.referenceImage.status))} onClick={uploadFirstImageToProvider}>
+                <button disabled={!batch || busy || !selectedProviderConfigReady || !confirmProviderUpload || !batch.items.some((item) => item.referenceImage.localPath && ["ready_for_preview", "approved", "uploaded_public"].includes(item.referenceImage.status))} onClick={uploadFirstImageToProvider}>
                   Upload First Image to {selectedProvider.label}
                 </button>
               </div>
@@ -438,7 +444,7 @@ export default function VideoWorkflowPage() {
             <VideoModeControls mode={videoMode} disabled={busy} confirmRealRun={confirmRealVideoRun} onMode={setVideoMode} onConfirmRealRun={setConfirmRealVideoRun} />
             {videoMode === "real" ? <p className="provider-note">Real mode uses {selectedProvider.label} only. There is no silent VideoFactory fallback.</p> : null}
             <div className="actions">
-              <button className="primary" disabled={!batch || busy || !prerequisites?.promptDirExported || (videoMode === "real" ? !confirmRealVideoRun || !hasSelectedProviderAsset : uploadedItems.length === 0 && !manualPublicImageUrl.trim())} onClick={generateVideos}>
+              <button className="primary" disabled={!batch || busy || !prerequisites?.promptDirExported || (videoMode === "real" ? !selectedProviderConfigReady || !confirmRealVideoRun || !hasSelectedProviderAsset : uploadedItems.length === 0 && !manualPublicImageUrl.trim())} onClick={generateVideos}>
                 {videoMode === "real" ? `Submit Real ${selectedProvider.label} Image-to-Video` : "Generate Mock / Dry-run Video"}
               </button>
               {canSyncRealVideosAgain ? <button disabled={!batch || busy} onClick={syncRealVideosAgain}>Sync Real Videos Again</button> : null}
@@ -559,10 +565,18 @@ function ProviderSetupPanel({ providerId, diagnostic, disabled, onProvider }: {
         <p><strong>Source type:</strong> {provider.source === "official_api" ? "official API" : "web"}</p>
         <p><strong>Account scope:</strong> {provider.accountScope}</p>
         <p><strong>Credential status:</strong> {diagnostic?.credentialStatus || "loading"}</p>
+        <p><strong>Base URL:</strong> {diagnostic?.baseUrlConfigured ? diagnostic.baseUrl : "not configured"}</p>
         <p><strong>Balance status:</strong> {diagnostic?.balanceStatus || "loading"}</p>
         <p><strong>Capabilities:</strong> {provider.capabilities.length > 0 ? provider.capabilities.join(", ") : "none enabled"}</p>
-        <p><strong>Endpoint manifest:</strong> {provider.endpointManifest.length} entries</p>
-        {provider.experimental ? <p className="error-box">Experimental web mode: manual HAR analysis only. Automatic web actions are disabled.</p> : null}
+        <p><strong>Endpoint manifest:</strong> {diagnostic?.observedEndpointCount ?? provider.endpointManifest.length} entries</p>
+        {diagnostic?.credentials.map((credential) => (
+          <p key={credential.envKey}><strong>{credential.envKey} fingerprint:</strong> {credential.present ? `${credential.masked} / ${credential.sha256Prefix}` : "not configured"}</p>
+        ))}
+        {provider.experimental ? <p className="error-box">Experimental web mode: manual HAR analysis only. Automatic web actions are disabled. {diagnostic?.observedEndpointCount ? `${diagnostic.observedEndpointCount} observed endpoints.` : "HAR capture pending."}</p> : null}
+        {provider.source === "official_api" && diagnostic?.credentialStatus !== "configured" ? (
+          <p className="error-box">Provider config missing. Real actions are disabled. <Link href="/provider-settings">Configure provider in Provider Settings</Link>.</p>
+        ) : null}
+        {provider.source === "web" ? <p><Link href="/web-api-capture">Open Web API Capture</Link></p> : null}
         {provider.limitations.map((limitation) => <p className="muted" key={limitation}>{limitation}</p>)}
       </div>
     </div>

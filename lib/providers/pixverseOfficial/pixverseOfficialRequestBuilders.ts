@@ -9,9 +9,9 @@ export function pixverseOfficialHeaders(apiKey = process.env.PIXVERSE_OFFICIAL_A
   };
 }
 
-export function buildPixVerseBalanceRequest(apiKey?: string): { url: string; init: RequestInit } {
+export function buildPixVerseBalanceRequest(apiKey?: string, baseUrl = pixverseOfficialBaseUrl()): { url: string; init: RequestInit } {
   return {
-    url: `${pixverseOfficialBaseUrl()}/openapi/v2/account/balance`,
+    url: `${baseUrl.replace(/\/$/, "")}/openapi/v2/account/balance`,
     init: { method: "GET", headers: pixverseOfficialHeaders(apiKey) }
   };
 }
