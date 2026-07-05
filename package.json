@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:polling": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "build": "next build",
+    "generate:profiles:safe": "python3 scripts/generate_profile_s3_images.py",
+    "generate:personas:safe": "python3 scripts/split_and_generate_social_ad_personas.py",
     "test": "node --import tsx -r tsconfig-paths/register scripts/test-providers.ts",
     "test:workflow": "tsx -r tsconfig-paths/register scripts/smoke-workflow.ts",
     "test:e2e": "playwright test"

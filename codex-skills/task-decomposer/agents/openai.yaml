@@ -1,0 +1,4 @@
+interface:
+  display_name: "Task Decomposer"
+  short_description: "Break long Codex work into safe small steps"
+  default_prompt: "Use $task-decomposer to break this long Codex task into short, low-output execution steps."

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { requestJson } from "@/lib/network/request";
 
 type Fingerprint = {
   present: boolean;
@@ -32,9 +33,12 @@ export default function ProviderSettingsPage() {
   const [message, setMessage] = useState("");
 
   async function load() {
-    const response = await fetch("/api/provider-settings");
-    const data = await response.json() as { providers?: SettingsProvider[] };
-    setProviders(data.providers || []);
+    try {
+      const data = await requestJson<{ providers?: SettingsProvider[] }>("/api/provider-settings");
+      setProviders(data.providers || []);
+    } catch (error) {
+      onPageLoadError(error, setMessage);
+    }
   }
 
   useEffect(() => {
@@ -83,18 +87,19 @@ function ProviderSettingsCard({ provider, onMessage, onReload }: {
   async function save() {
     setBusy(true);
     try {
-      const response = await fetch("/api/provider-settings/save", {
+      const data = await requestJson<{ ok?: boolean; message?: string }>("/api/provider-settings/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ providerId: provider.id, envUpdates: draft })
       });
-      const data = await response.json() as { ok?: boolean; message?: string };
       onMessage(data.message || (data.ok ? "Credentials saved." : "Unable to save provider settings."));
       if (data.ok) {
         setDraft({});
         setVisible({});
         await onReload();
       }
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Unable to save provider settings.");
     } finally {
       setBusy(false);
     }
@@ -103,13 +108,14 @@ function ProviderSettingsCard({ provider, onMessage, onReload }: {
   async function testConnection() {
     setBusy(true);
     try {
-      const response = await fetch("/api/provider-settings/test", {
+      const data = await requestJson<{ ok?: boolean; status?: string; sanitizedError?: string }>("/api/provider-settings/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ providerId: provider.id })
       });
-      const data = await response.json() as { ok?: boolean; status?: string; sanitizedError?: string };
       onMessage(data.ok ? `${provider.label}: connection test passed.` : `${provider.label}: ${data.sanitizedError || data.status || "connection test unavailable"}`);
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : `${provider.label}: connection test unavailable`);
     } finally {
       setBusy(false);
     }
@@ -158,4 +164,8 @@ function ProviderSettingsCard({ provider, onMessage, onReload }: {
       </div>
     </section>
   );
+}
+
+function onPageLoadError(error: unknown, setMessage: (message: string) => void): void {
+  setMessage(error instanceof Error ? error.message : "Unable to load provider settings.");
 }

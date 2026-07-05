@@ -4,6 +4,9 @@ export type VideoFactoryAdapterConfig = {
   videoFactoryPath: string;
   bridgeUrl: string;
   apiKey?: string;
+  commandTimeoutMs?: number;
+  commandLogLimitBytes?: number;
+  reconnectingWatchdogMs?: number;
 };
 
 export type VideoFactorySetupResult = {
@@ -21,6 +24,15 @@ export type VideoFactoryCommandResult = {
   resultJsonPath?: string;
   submissions?: VideoFactoryVideoSubmission[];
   runtimeDiagnostics?: VideoFactoryRuntimeDiagnostics;
+  durationMs?: number;
+  timedOut?: boolean;
+  stdoutBytes?: number;
+  stderrBytes?: number;
+  stdoutTruncated?: boolean;
+  stderrTruncated?: boolean;
+  logLimitBytes?: number;
+  unauthorizedDetected?: boolean;
+  reconnectingWatchdog?: VideoFactoryReconnectWatchdogResult;
 };
 
 export type VideoFactoryVideoSubmission = {
@@ -44,6 +56,34 @@ export type VideoFactoryRuntimeDiagnostics = {
   command?: string;
   envLocalExists: boolean;
   childProcessPixverseKeyPresent: boolean;
+  commandTimeoutMs?: number;
+  reconnectingWatchdogMs?: number;
+};
+
+export type VideoFactoryReconnectWatchdogResult = {
+  triggered: boolean;
+  thresholdMs: number;
+  firstSeenAtMs?: number;
+  lastSeenAtMs?: number;
+  observationCount: number;
+  pattern?: string;
+  repairAction?: string;
+  recommendedActions: string[];
+};
+
+export type VideoFactoryCommandLog = {
+  command: string;
+  stdout: string;
+  stderr: string;
+  runtimeDiagnostics?: VideoFactoryRuntimeDiagnostics;
+  durationMs?: number;
+  timedOut?: boolean;
+  stdoutBytes?: number;
+  stderrBytes?: number;
+  stdoutTruncated?: boolean;
+  stderrTruncated?: boolean;
+  logLimitBytes?: number;
+  reconnectingWatchdog?: VideoFactoryReconnectWatchdogResult;
 };
 
 export type ImageGenerationMode = "mock" | "dry-run" | "real";
@@ -74,12 +114,7 @@ export type GenerateReferenceImagesResult = {
     localPath: string;
     previewUrl: string;
   }>;
-  commandLogs: Array<{
-    command: string;
-    stdout: string;
-    stderr: string;
-    runtimeDiagnostics?: VideoFactoryRuntimeDiagnostics;
-  }>;
+  commandLogs: VideoFactoryCommandLog[];
   errorCode?: string;
   message?: string;
   runtimeDiagnostics?: VideoFactoryRuntimeDiagnostics;

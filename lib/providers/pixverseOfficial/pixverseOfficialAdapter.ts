@@ -2,13 +2,17 @@ import { buildPixVerseBalanceRequest, buildPixVerseImageToVideoRequest, buildPix
 import { normalizePixVerseOfficialError } from "@/lib/providers/pixverseOfficial/pixverseOfficialErrorNormalizer";
 import { parsePixVerseOfficialBalanceResponse, parsePixVerseOfficialImageToVideoResponse, parsePixVerseOfficialUploadImageResponse } from "@/lib/providers/pixverseOfficial/pixverseOfficialResponseParsers";
 import { parsePixVerseOfficialVideoStatus } from "@/lib/providers/pixverseOfficial/pixverseOfficialStatusParser";
+import { formatNetworkError, PROVIDER_REQUEST_TIMEOUT_MS, withTimeoutSignal } from "@/lib/network/request";
 
 type Fetcher = typeof fetch;
 
 export class PixVerseOfficialAdapter {
   readonly providerId = "pixverse_official_api" as const;
 
-  constructor(private readonly fetcher: Fetcher = fetch) {}
+  constructor(
+    private readonly fetcher: Fetcher = fetch,
+    private readonly timeoutMs = PROVIDER_REQUEST_TIMEOUT_MS
+  ) {}
 
   async getCreditBalance() {
     const response = await this.request(buildPixVerseBalanceRequest());
@@ -36,7 +40,15 @@ export class PixVerseOfficialAdapter {
   }
 
   private async request(request: { url: string; init: RequestInit }): Promise<any> {
-    const response = await this.fetcher(request.url, request.init);
+    const timed = withTimeoutSignal(request.init, this.timeoutMs);
+    let response: Response;
+    try {
+      response = await this.fetcher(request.url, timed.init);
+    } catch (error) {
+      throw new Error(formatNetworkError(error, "PixVerse official API request", this.timeoutMs));
+    } finally {
+      timed.cancel();
+    }
     const data = await response.json().catch(() => ({}));
     const normalized = normalizePixVerseOfficialError(data);
     if (!response.ok || normalized) throw new Error(normalized?.message || `PixVerse official API returned HTTP ${response.status}`);

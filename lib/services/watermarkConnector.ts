@@ -3,6 +3,7 @@ import path from "node:path";
 import { saveBatch } from "@/lib/services/batchService";
 import { VideoBatch } from "@/lib/schemas/videoBatch.schema";
 import { isRealMp4Url } from "@/lib/services/videoAssetValidation";
+import { formatNetworkError, WATERMARK_REQUEST_TIMEOUT_MS, withTimeoutSignal } from "@/lib/network/request";
 
 export async function sendSuccessfulVideosToWatermark(batch: VideoBatch, mock = true): Promise<VideoBatch> {
   const items = await Promise.all(batch.items.map(async (item) => {
@@ -51,11 +52,19 @@ export function hasRealGeneratedVideoAsset(item: VideoBatch["items"][number]): b
 async function requestWatermarkRemoval(videoUrl: string): Promise<string> {
   const serviceUrl = process.env.WATERMARK_SERVICE_URL;
   if (!serviceUrl) throw new Error("WATERMARK_SERVICE_URL is not configured.");
-  const response = await fetch(`${serviceUrl.replace(/\/$/, "")}/remove-watermark`, {
+  const timed = withTimeoutSignal({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ videoUrl, mode: "extra_fast" })
-  });
+  }, WATERMARK_REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${serviceUrl.replace(/\/$/, "")}/remove-watermark`, timed.init);
+  } catch (error) {
+    throw new Error(formatNetworkError(error, "Watermark service request", WATERMARK_REQUEST_TIMEOUT_MS));
+  } finally {
+    timed.cancel();
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.processedVideoUrl) {
     throw new Error(data.message || data.error || `Watermark service returned HTTP ${response.status}`);

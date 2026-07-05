@@ -4,6 +4,7 @@ import path from "node:path";
 import { normalizePixVerseOfficialError } from "@/lib/providers/pixverseOfficial/pixverseOfficialErrorNormalizer";
 import { buildPixVerseBalanceRequest } from "@/lib/providers/pixverseOfficial/pixverseOfficialRequestBuilders";
 import { parsePixVerseOfficialBalanceResponse } from "@/lib/providers/pixverseOfficial/pixverseOfficialResponseParsers";
+import { formatNetworkError, PROVIDER_REQUEST_TIMEOUT_MS, withTimeoutSignal } from "@/lib/network/request";
 
 export type ProviderSettingsId =
   | "pixverse_official_api"
@@ -176,7 +177,15 @@ export async function testProviderSettingsConnection(providerId: string, fetcher
     if (!apiKey) return configMissing(providerId, keyFingerprint, baseUrl, "PIXVERSE_OFFICIAL_API_KEY is missing.");
     try {
       const request = buildPixVerseBalanceRequest(apiKey, baseUrl);
-      const response = await fetcher(request.url, request.init);
+      const timed = withTimeoutSignal(request.init, PROVIDER_REQUEST_TIMEOUT_MS);
+      let response: Response;
+      try {
+        response = await fetcher(request.url, timed.init);
+      } catch (error) {
+        throw new Error(formatNetworkError(error, "PixVerse Official API connection test", PROVIDER_REQUEST_TIMEOUT_MS));
+      } finally {
+        timed.cancel();
+      }
       const data = await response.json().catch(() => ({}));
       const normalized = normalizePixVerseOfficialError(data);
       if (!response.ok || normalized) throw new Error(normalized?.message || `PixVerse Official API returned HTTP ${response.status}`);

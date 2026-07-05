@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { requestJson } from "@/lib/network/request";
 
 type ImportResult = {
   ok?: boolean;
@@ -37,11 +38,15 @@ export default function WebApiCapturePage() {
   const [result, setResult] = useState<ImportResult>();
   const [busy, setBusy] = useState(false);
   const [savedReports, setSavedReports] = useState<ImportResult[]>([]);
+  const [message, setMessage] = useState("");
 
   async function loadSavedReports() {
-    const response = await fetch("/api/web-api-capture");
-    const data = await response.json() as { reports?: ImportResult[] };
-    setSavedReports(data.reports || []);
+    try {
+      const data = await requestJson<{ reports?: ImportResult[] }>("/api/web-api-capture");
+      setSavedReports(data.reports || []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to load saved HAR reports.");
+    }
   }
 
   useEffect(() => {
@@ -56,9 +61,13 @@ export default function WebApiCapturePage() {
       body.append("providerId", providerId);
       body.append("harFile", file);
       body.append("previewOnly", String(previewOnly));
-      const response = await fetch("/api/web-api-capture/import-har", { method: "POST", body });
-      setResult(await response.json() as ImportResult);
+      setResult(await requestJson<ImportResult>("/api/web-api-capture/import-har", { method: "POST", body }, { timeoutMs: 120_000 }));
       await loadSavedReports();
+    } catch (error) {
+      setResult({
+        ok: false,
+        message: error instanceof Error ? error.message : "HAR import failed."
+      });
     } finally {
       setBusy(false);
     }
@@ -81,6 +90,7 @@ export default function WebApiCapturePage() {
         <p>Web adapters are experimental and based on user-provided HAR files or browser-assisted manual observation. They do not bypass login, CAPTCHA, verification, rate limits, or platform protections.</p>
         <p>Browser-assisted mode is planned and disabled by default. This tool performs no automatic web submission and reads no browser cookies.</p>
       </div>
+      {message ? <div className="notice" role="status">{message}</div> : null}
       <section className="panel">
         <h2>Import HAR</h2>
         <label className="field">

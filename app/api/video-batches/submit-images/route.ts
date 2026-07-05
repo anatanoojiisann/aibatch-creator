@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createVideoFactoryAdapter, writeCommandManifest } from "@/lib/integrations/videofactory/videoFactoryAdapter";
+import { createVideoFactoryAdapter, summarizeVideoFactoryCommandResult, writeCommandManifest } from "@/lib/integrations/videofactory/videoFactoryAdapter";
 import { loadBatch, saveBatch } from "@/lib/services/batchService";
 
 export async function POST(request: Request) {
@@ -18,6 +18,7 @@ export async function POST(request: Request) {
       confirmedFullBatch: body.confirmFullBatch === true
     });
     const manifestPath = await writeCommandManifest(batch.id, "video_factory_image_result.json", result);
+    const resultSummary = summarizeVideoFactoryCommandResult(result);
     const current = await loadBatch(batch.id);
     const submitted = result.ok ? current.items.length : 0;
     const updated = await saveBatch({
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
           ...item.referenceImage,
           status: result.ok ? "submitted" : "failed",
           errorCode: result.ok ? undefined : "IMAGE_SUBMIT_FAILED",
-          errorMessage: result.ok ? undefined : result.stderr || result.stdout
+          errorMessage: result.ok ? undefined : resultSummary.stderr || resultSummary.stdout
         }
       }))
     });
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
       dryRun: body.dryRun !== false,
       resultPath: manifestPath,
       message: result.ok ? `Submitted ${submitted} image prompt item(s) in dry-run/mock mode.` : "Image submission failed.",
-      result
+      result: resultSummary
     });
   } catch (error) {
     return NextResponse.json({

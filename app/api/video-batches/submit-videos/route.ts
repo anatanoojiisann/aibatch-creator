@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
-import { createVideoFactoryAdapter, writeCommandManifest } from "@/lib/integrations/videofactory/videoFactoryAdapter";
+import { createVideoFactoryAdapter, summarizeVideoFactoryCommandResult, writeCommandManifest } from "@/lib/integrations/videofactory/videoFactoryAdapter";
 import { VideoFactoryVideoSubmission } from "@/lib/integrations/videofactory/videoFactoryTypes";
 import { PixVerseOfficialAdapter } from "@/lib/providers/pixverseOfficial/pixverseOfficialAdapter";
 import { getProviderDefinition, isProviderId } from "@/lib/providers/providerRegistry";
@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       confirmedFullBatch: false
     });
     const manifestPath = await writeCommandManifest(batch.id, "video_factory_video_result.json", result);
+    const resultSummary = summarizeVideoFactoryCommandResult(result);
     const current = await loadBatch(batch.id);
     const updatedItems = current.items.map((item) => {
       if (!eligible.some((entry) => entry.id === item.id)) return item;
@@ -106,7 +107,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: result.ok,
       batch: updated,
-      result,
+      result: resultSummary,
       message: realMode
         ? waitingForRealVideo ? "Real video job submitted. Waiting for generated video output. Try Sync Real Videos Again in 30–60 seconds." : "Real video submission processed."
         : mockVideoMessage

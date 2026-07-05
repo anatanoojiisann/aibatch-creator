@@ -19,6 +19,17 @@ export default tseslint.config(
     }
   },
   {
-    ignores: [".next/**", "node_modules/**", "storage/video-batches/**"]
+    ignores: [
+      ".next/**",
+      ".local/**",
+      "data/**",
+      "devspace/**",
+      "logs/**",
+      "node_modules/**",
+      "output/**",
+      "outputs/**",
+      "profiles/**",
+      "storage/video-batches/**"
+    ]
   }
 );

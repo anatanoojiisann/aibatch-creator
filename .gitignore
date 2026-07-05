@@ -3,6 +3,33 @@ node_modules/
 .npm-cache/
 test-results/
 playwright-report/
+.turbo/
+.vercel/
+.cache/
+coverage/
+dist/
+build/
+.DS_Store
+
+# Local runtimes and generated artifacts. Leaving these unignored makes Codex/Git
+# enumerate tens of thousands of files and can break the response WebSocket.
+.local/
+devspace/
+logs/
+output/
+outputs/
+profiles/
+data/
+output.zip
+scripts/__pycache__/
+*.log
+*.jsonl
+*.ndjson
+*.har
+*.trace
+*.tmp
+*.zip
+
 .env
 *.tsbuildinfo
 storage/video-batches/*

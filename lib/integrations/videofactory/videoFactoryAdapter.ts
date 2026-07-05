@@ -18,6 +18,7 @@ import {
   SyncRelaxImagesOptions,
   VideoFactoryAdapterConfig,
   VideoFactoryCommandResult,
+  VideoFactoryReconnectWatchdogResult,
   VideoFactoryRuntimeDiagnostics,
   VideoFactorySetupResult,
   VideoFactoryVideoSubmission
@@ -27,6 +28,11 @@ const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
 const imageExtensions = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 const waitingForRealImageOutputMessage = "Image job submitted. Waiting for generated image output. Try Sync Real Images Again in 30–60 seconds.";
 const unauthorizedRuntimeKeyMessage = "Aurax bridge rejected the runtime PIXVERSE_WEB_PROVIDER_API_KEY. The running Next.js server may be using a stale or wrong key. Restart npm run dev after updating .env.local, and verify the runtime key fingerprint matches VideoFactory/start.sh.";
+const defaultVideoFactoryCommandTimeoutMs = 10 * 60_000;
+const defaultVideoFactoryCommandLogLimitBytes = 64 * 1024;
+const apiCommandLogLimitBytes = 4 * 1024;
+const defaultReconnectWatchdogMs = 2 * 60_000;
+const reconnectingPattern = /\b(?:reconnecting|stream disconnected|request body read timed out|backend-api\/codex\/responses|408 request timeout)\b/i;
 
 export class VideoFactoryAdapter {
   constructor(private readonly config: VideoFactoryAdapterConfig) {}
@@ -395,6 +401,8 @@ export class VideoFactoryAdapter {
     const setup = await this.checkSetup();
     if (!setup.ok) throw new Error(setup.errors.join("\n"));
     const runtimeApiKey = process.env.PIXVERSE_WEB_PROVIDER_API_KEY || apiKey || "";
+    const commandTimeoutMs = this.config.commandTimeoutMs ?? defaultVideoFactoryCommandTimeoutMs;
+    const reconnectingWatchdogMs = this.config.reconnectingWatchdogMs ?? defaultReconnectWatchdogMs;
     const childEnv = {
       ...process.env,
       PIXVERSE_WEB_PROVIDER_API_KEY: runtimeApiKey,
@@ -408,20 +416,83 @@ export class VideoFactoryAdapter {
       bridgeUrl,
       command,
       dryRun: args.includes("--dry-run"),
-      childProcessPixverseKeyPresent: Boolean(childEnv.PIXVERSE_WEB_PROVIDER_API_KEY)
+      childProcessPixverseKeyPresent: Boolean(childEnv.PIXVERSE_WEB_PROVIDER_API_KEY),
+      commandTimeoutMs,
+      reconnectingWatchdogMs
     });
     return new Promise((resolve) => {
+      const startedAt = Date.now();
       const child = spawn("npm", args, {
         cwd: this.config.videoFactoryPath,
         env: childEnv,
         shell: false
       });
-      let stdout = "";
-      let stderr = "";
+      let timedOut = false;
+      let settled = false;
       const secrets = [runtimeApiKey, childEnv.BRIDGE_API_KEY, childEnv.API_KEY];
-      child.stdout.on("data", (chunk: Buffer) => { stdout += maskSecrets(chunk.toString(), secrets); });
-      child.stderr.on("data", (chunk: Buffer) => { stderr += maskSecrets(chunk.toString(), secrets); });
-      child.on("close", (code) => resolve({ ok: code === 0, command, stdout, stderr, runtimeDiagnostics }));
+      const logLimitBytes = this.config.commandLogLimitBytes ?? defaultVideoFactoryCommandLogLimitBytes;
+      const stdout = createBoundedLog(logLimitBytes, secrets);
+      const stderr = createBoundedLog(logLimitBytes, secrets);
+      let unauthorizedDetected = false;
+      const reconnectingWatchdog = createReconnectWatchdog(reconnectingWatchdogMs, startedAt);
+      const appendStdout = (chunk: Buffer) => {
+        const text = stdout.append(chunk);
+        unauthorizedDetected ||= text.toLowerCase().includes("unauthorized");
+        reconnectingWatchdog.observe(text, "stdout");
+      };
+      const appendStderr = (chunk: Buffer) => {
+        const text = stderr.append(chunk);
+        unauthorizedDetected ||= text.toLowerCase().includes("unauthorized");
+        reconnectingWatchdog.observe(text, "stderr");
+      };
+      child.stdout.on("data", appendStdout);
+      child.stderr.on("data", appendStderr);
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 5_000).unref?.();
+      }, commandTimeoutMs);
+      const reconnectingWatchdogTimer = setInterval(() => {
+        const result = reconnectingWatchdog.check(Date.now());
+        if (!result.triggered || settled) return;
+        stderr.append(reconnectWatchdogMessage(result));
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 5_000).unref?.();
+      }, Math.min(10_000, Math.max(1_000, reconnectingWatchdogMs / 12)));
+      const finish = (ok: boolean, extraStderr = "") => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        clearInterval(reconnectingWatchdogTimer);
+        if (extraStderr) stderr.append(extraStderr);
+        const stdoutSnapshot = stdout.snapshot();
+        const stderrSnapshot = stderr.snapshot();
+        const reconnectingWatchdogResult = reconnectingWatchdog.result();
+        resolve({
+          ok: ok && !reconnectingWatchdogResult.triggered,
+          command,
+          stdout: stdoutSnapshot.text,
+          stderr: stderrSnapshot.text,
+          runtimeDiagnostics,
+          durationMs: Date.now() - startedAt,
+          timedOut,
+          stdoutBytes: stdoutSnapshot.bytes,
+          stderrBytes: stderrSnapshot.bytes,
+          stdoutTruncated: stdoutSnapshot.truncated,
+          stderrTruncated: stderrSnapshot.truncated,
+          logLimitBytes,
+          unauthorizedDetected,
+          reconnectingWatchdog: reconnectingWatchdogResult
+        });
+      };
+      child.on("error", (error) => finish(false, `Failed to start VideoFactory command: ${error.message}`));
+      child.on("close", (code, signal) => {
+        const timeoutMessage = timedOut
+          ? `VideoFactory command timed out after ${Math.round(commandTimeoutMs / 1000)} seconds and was stopped.`
+          : "";
+        const signalMessage = signal && !timedOut ? `VideoFactory command stopped with signal ${signal}.` : "";
+        finish(code === 0 && !timedOut, timeoutMessage || signalMessage);
+      });
     });
   }
 }
@@ -431,7 +502,10 @@ export function createVideoFactoryAdapter(): VideoFactoryAdapter {
   return new VideoFactoryAdapter({
     videoFactoryPath: process.env.VIDEO_FACTORY_PATH || "/Users/steven-mac2/Documents/VideoFactory",
     bridgeUrl: process.env.VIDEO_FACTORY_BRIDGE_URL || "https://admin666.aurax.one",
-    apiKey: key && key !== "replace_with_real_bridge_key" ? key : undefined
+    apiKey: key && key !== "replace_with_real_bridge_key" ? key : undefined,
+    commandTimeoutMs: parsePositiveInt(process.env.VIDEO_FACTORY_COMMAND_TIMEOUT_MS, defaultVideoFactoryCommandTimeoutMs),
+    commandLogLimitBytes: parsePositiveInt(process.env.VIDEO_FACTORY_COMMAND_LOG_LIMIT_BYTES, defaultVideoFactoryCommandLogLimitBytes),
+    reconnectingWatchdogMs: parsePositiveInt(process.env.VIDEO_FACTORY_RECONNECTING_WATCHDOG_MS, defaultReconnectWatchdogMs)
   });
 }
 
@@ -441,6 +515,8 @@ export function getVideoFactoryRuntimeDiagnostics(options: {
   command?: string;
   dryRun?: boolean;
   childProcessPixverseKeyPresent?: boolean;
+  commandTimeoutMs?: number;
+  reconnectingWatchdogMs?: number;
 } = {}): VideoFactoryRuntimeDiagnostics {
   const apiKey = options.apiKey ?? process.env.PIXVERSE_WEB_PROVIDER_API_KEY ?? "";
   const videoFactoryPath = process.env.VIDEO_FACTORY_PATH || "/Users/steven-mac2/Documents/VideoFactory";
@@ -451,7 +527,9 @@ export function getVideoFactoryRuntimeDiagnostics(options: {
     videoFactoryPath,
     command: options.command,
     envLocalExists: existsSync(path.join(process.cwd(), ".env.local")),
-    childProcessPixverseKeyPresent: options.childProcessPixverseKeyPresent ?? false
+    childProcessPixverseKeyPresent: options.childProcessPixverseKeyPresent ?? false,
+    commandTimeoutMs: options.commandTimeoutMs ?? parsePositiveInt(process.env.VIDEO_FACTORY_COMMAND_TIMEOUT_MS, defaultVideoFactoryCommandTimeoutMs),
+    reconnectingWatchdogMs: options.reconnectingWatchdogMs ?? parsePositiveInt(process.env.VIDEO_FACTORY_RECONNECTING_WATCHDOG_MS, defaultReconnectWatchdogMs)
   };
 }
 
@@ -476,6 +554,83 @@ function maskSecrets(value: string, secrets: Array<string | undefined>): string 
   return secrets.filter((secret): secret is string => Boolean(secret)).reduce((masked, secret) => masked.split(secret).join("***"), value);
 }
 
+function createBoundedLog(limitBytes: number, secrets: Array<string | undefined>) {
+  let text = "";
+  let bytes = 0;
+  return {
+    append(chunk: Buffer | string) {
+      const masked = maskSecrets(chunk.toString(), secrets);
+      bytes += Buffer.byteLength(masked);
+      text = tailByUtf8Bytes(text + masked, limitBytes);
+      return masked;
+    },
+    snapshot() {
+      return {
+        text: bytes > Buffer.byteLength(text) ? truncationNotice(limitBytes, bytes) + text : text,
+        bytes,
+        truncated: bytes > Buffer.byteLength(text)
+      };
+    }
+  };
+}
+
+function createReconnectWatchdog(thresholdMs: number, startedAt: number) {
+  let firstSeenAt: number | undefined;
+  let lastSeenAt: number | undefined;
+  let observationCount = 0;
+  let pattern: string | undefined;
+  let triggered = false;
+
+  const result = (): VideoFactoryReconnectWatchdogResult => ({
+    triggered,
+    thresholdMs,
+    firstSeenAtMs: firstSeenAt === undefined ? undefined : firstSeenAt - startedAt,
+    lastSeenAtMs: lastSeenAt === undefined ? undefined : lastSeenAt - startedAt,
+    observationCount,
+    pattern,
+    repairAction: triggered ? "Stopped the local VideoFactory process after reconnecting persisted beyond the watchdog threshold." : undefined,
+    recommendedActions: reconnectWatchdogRecommendedActions(triggered)
+  });
+
+  return {
+    observe(text: string, stream: "stdout" | "stderr") {
+      const match = text.match(reconnectingPattern);
+      if (!match) return;
+      const now = Date.now();
+      firstSeenAt ??= now;
+      lastSeenAt = now;
+      observationCount += 1;
+      pattern = `${stream}:${match[0]}`;
+    },
+    check(now: number) {
+      if (firstSeenAt !== undefined && !triggered && now - firstSeenAt >= thresholdMs) {
+        triggered = true;
+      }
+      return result();
+    },
+    result
+  };
+}
+
+function reconnectWatchdogMessage(result: VideoFactoryReconnectWatchdogResult): string {
+  return [
+    "Reconnect watchdog triggered.",
+    `Detected ${result.pattern || "reconnecting output"} for at least ${formatDuration(result.thresholdMs)}.`,
+    result.repairAction || "Stopped the local process to avoid a stuck workflow.",
+    "Diagnostic context is preserved in the bounded stdout/stderr tails and runtimeDiagnostics.",
+    `Recommended actions: ${result.recommendedActions.join(" ")}`
+  ].join("\n");
+}
+
+function reconnectWatchdogRecommendedActions(triggered: boolean): string[] {
+  if (!triggered) return [];
+  return [
+    "Restart the dev server so watch/ignore changes are active.",
+    "Continue heavy work from CODEX_HANDOFF.md in a fresh short thread.",
+    "Retry the workflow in a small batch before increasing concurrency."
+  ];
+}
+
 function safeKeyFingerprint(value: string) {
   return {
     keyPresent: Boolean(value),
@@ -486,7 +641,12 @@ function safeKeyFingerprint(value: string) {
 }
 
 function hasUnauthorizedError(result: VideoFactoryCommandResult): boolean {
-  return `${result.stdout}\n${result.stderr}`.toLowerCase().includes("unauthorized");
+  return result.unauthorizedDetected === true || `${result.stdout}\n${result.stderr}`.toLowerCase().includes("unauthorized");
+}
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
 async function readVideoSubmissions(filePath: string): Promise<VideoFactoryVideoSubmission[]> {
@@ -529,10 +689,61 @@ function emptyReferenceResult(mode: GenerateReferenceImagesOptions["mode"], erro
 function commandLog(result: VideoFactoryCommandResult): GenerateReferenceImagesResult["commandLogs"][number] {
   return {
     command: result.command,
-    stdout: result.stdout,
-    stderr: result.stderr,
-    runtimeDiagnostics: result.runtimeDiagnostics
+    stdout: tailWithTruncationNotice(result.stdout, apiCommandLogLimitBytes, result.stdoutBytes),
+    stderr: tailWithTruncationNotice(result.stderr, apiCommandLogLimitBytes, result.stderrBytes),
+    runtimeDiagnostics: result.runtimeDiagnostics,
+    durationMs: result.durationMs,
+    timedOut: result.timedOut,
+    stdoutBytes: result.stdoutBytes,
+    stderrBytes: result.stderrBytes,
+    stdoutTruncated: result.stdoutTruncated || wasTextTrimmedForApi(result.stdout, apiCommandLogLimitBytes),
+    stderrTruncated: result.stderrTruncated || wasTextTrimmedForApi(result.stderr, apiCommandLogLimitBytes),
+    logLimitBytes: apiCommandLogLimitBytes,
+    reconnectingWatchdog: result.reconnectingWatchdog
   };
+}
+
+export function summarizeVideoFactoryCommandResult(result: VideoFactoryCommandResult): VideoFactoryCommandResult {
+  return {
+    ...result,
+    stdout: tailWithTruncationNotice(result.stdout, apiCommandLogLimitBytes, result.stdoutBytes),
+    stderr: tailWithTruncationNotice(result.stderr, apiCommandLogLimitBytes, result.stderrBytes),
+    stdoutTruncated: result.stdoutTruncated || wasTextTrimmedForApi(result.stdout, apiCommandLogLimitBytes),
+    stderrTruncated: result.stderrTruncated || wasTextTrimmedForApi(result.stderr, apiCommandLogLimitBytes),
+    logLimitBytes: apiCommandLogLimitBytes
+  };
+}
+
+function tailWithTruncationNotice(value: string, limitBytes: number, originalBytes = Buffer.byteLength(value)): string {
+  const tail = tailByUtf8Bytes(value, limitBytes);
+  return originalBytes > Buffer.byteLength(tail) ? truncationNotice(limitBytes, originalBytes) + tail : tail;
+}
+
+function wasTextTrimmedForApi(value: string, limitBytes: number): boolean {
+  return Buffer.byteLength(value) > limitBytes;
+}
+
+function tailByUtf8Bytes(value: string, limitBytes: number): string {
+  if (!Number.isFinite(limitBytes) || limitBytes <= 0) return "";
+  const buffer = Buffer.from(value);
+  if (buffer.byteLength <= limitBytes) return value;
+  return buffer.subarray(buffer.byteLength - limitBytes).toString("utf8").replace(/^\uFFFD+/, "");
+}
+
+function truncationNotice(limitBytes: number, originalBytes: number): string {
+  return `[output truncated to last ${formatBytes(limitBytes)} of ${formatBytes(originalBytes)}]\n`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+function formatDuration(ms: number): string {
+  if (ms >= 60_000 && ms % 60_000 === 0) return `${ms / 60_000}m`;
+  if (ms >= 1_000 && ms % 1_000 === 0) return `${ms / 1_000}s`;
+  return `${ms}ms`;
 }
 
 function clampPositiveInt(value: number | undefined, fallback: number, max: number): number {

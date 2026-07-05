@@ -19,5 +19,14 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    ".local",
+    "data",
+    "devspace",
+    "logs",
+    "node_modules",
+    "output",
+    "outputs",
+    "profiles"
+  ]
 }

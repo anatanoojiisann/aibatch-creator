@@ -14,6 +14,7 @@ import { isRealMp4Url, isRealPublicHttpsUrl, mockVideoMessage, realPublicImageUr
 import { getProviderDefinition, getProviderRegistry } from "@/lib/providers/providerRegistry";
 import type { ProviderDiagnostic } from "@/lib/providers/providerDiagnostics";
 import type { ProviderId } from "@/lib/providers/providerTypes";
+import { LONG_CLIENT_REQUEST_TIMEOUT_MS, requestJson } from "@/lib/network/request";
 
 type VideoGenerationMode = "mock" | "real";
 const providerRegistry = getProviderRegistry();
@@ -32,11 +33,25 @@ type ApiResult = {
     stdout?: string;
     stderr?: string;
     command?: string;
+    stdoutBytes?: number;
+    stderrBytes?: number;
+    stdoutTruncated?: boolean;
+    stderrTruncated?: boolean;
+    logLimitBytes?: number;
+    reconnectingWatchdog?: ReconnectingWatchdogResult;
   };
   commandLogs?: Array<{
     command: string;
     stdout: string;
     stderr: string;
+    stdoutBytes?: number;
+    stderrBytes?: number;
+    stdoutTruncated?: boolean;
+    stderrTruncated?: boolean;
+    logLimitBytes?: number;
+    durationMs?: number;
+    timedOut?: boolean;
+    reconnectingWatchdog?: ReconnectingWatchdogResult;
   }>;
   runtimeDiagnostics?: {
     keyPresent: boolean;
@@ -50,6 +65,14 @@ type ApiResult = {
     envLocalExists: boolean;
     childProcessPixverseKeyPresent: boolean;
   };
+};
+
+type ReconnectingWatchdogResult = {
+  triggered: boolean;
+  thresholdMs: number;
+  pattern?: string;
+  repairAction?: string;
+  recommendedActions: string[];
 };
 
 type ProgressState = {
@@ -117,8 +140,7 @@ export default function VideoWorkflowPage() {
         || item.referenceImage.errorCode === "WAITING_FOR_REAL_IMAGE_OUTPUT")));
 
   async function reloadBatch(batchId: string) {
-    const response = await fetch(`/api/video-batches/create?batchId=${encodeURIComponent(batchId)}`);
-    const data = await response.json() as ApiResult;
+    const data = await requestJson<ApiResult>(`/api/video-batches/create?batchId=${encodeURIComponent(batchId)}`);
     if (data.batch) {
       setBatch(data.batch);
       setExistingBatchId(data.batch.id);
@@ -129,8 +151,7 @@ export default function VideoWorkflowPage() {
 
   async function loadLatestBatch() {
     try {
-      const response = await fetch("/api/video-batches/create");
-      const data = await response.json() as ApiResult;
+      const data = await requestJson<ApiResult>("/api/video-batches/create");
       const latest = data.batches?.[0];
       if (latest) {
         setBatch(latest);
@@ -143,9 +164,13 @@ export default function VideoWorkflowPage() {
   }
 
   async function loadProviderDiagnostics() {
-    const response = await fetch("/api/provider-diagnostics");
-    const data = await response.json() as { providers?: ProviderDiagnostic[] };
-    setProviderDiagnostics(data.providers || []);
+    try {
+      const data = await requestJson<{ providers?: ProviderDiagnostic[] }>("/api/provider-diagnostics");
+      setProviderDiagnostics(data.providers || []);
+    } catch (error) {
+      setProviderDiagnostics([]);
+      setMessage(error instanceof Error ? error.message : "Unable to load provider diagnostics.");
+    }
   }
 
   async function loadExistingBatch() {
@@ -163,16 +188,15 @@ export default function VideoWorkflowPage() {
     }
   }
 
-  async function call(path: string, body: Record<string, unknown> = {}) {
+  async function call(path: string, body: Record<string, unknown> = {}, timeoutMs = LONG_CLIENT_REQUEST_TIMEOUT_MS) {
     setBusy(true);
     setMessage("");
     try {
-      const response = await fetch(path, {
+      const data = await requestJson<ApiResult>(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
-      });
-      const data = await response.json() as ApiResult;
+      }, { timeoutMs });
       const batchId = data.batch?.id || String(body.batchId || "");
       if (data.batch) setBatch(data.batch);
       if (data.finalReportPath) setReportPath(data.finalReportPath);
@@ -182,7 +206,7 @@ export default function VideoWorkflowPage() {
         : formatApiError(data));
       return data;
     } catch (error) {
-      const text = error instanceof Error ? error.message : "Unknown error";
+      const text = error instanceof Error ? error.message : "Network request failed.";
       setMessage(text);
       return { ok: false, error: text } satisfies ApiResult;
     } finally {
@@ -682,7 +706,11 @@ function ApiErrorPanel({ error }: { error: ApiResult }) {
       ) : null}
       {logs.map((log, index) => (
         <details key={`${log.command}-${index}`}>
-          <summary>{log.command}</summary>
+          <summary>{log.command}{log.timedOut ? " (timed out)" : ""}</summary>
+          {log.reconnectingWatchdog?.triggered ? (
+            <p className="error-box">{formatWatchdogNotice(log.reconnectingWatchdog)}</p>
+          ) : null}
+          {log.stdoutTruncated || log.stderrTruncated ? <p className="muted">Showing a bounded log tail to keep the workflow responsive.</p> : null}
           {log.stdout ? <pre>{log.stdout}</pre> : null}
           {log.stderr ? <pre>{log.stderr}</pre> : null}
         </details>
@@ -887,11 +915,32 @@ function formatApiError(data: ApiResult): string {
   const missing = data.missingRequirements?.length
     ? `\nMissing requirements:\n- ${data.missingRequirements.join("\n- ")}`
     : "";
-  const raw = data.result?.stderr || data.result?.stdout
-    ? `\n\nCommand output:\n${data.result.stderr || data.result.stdout}`
-    : "";
+  const raw = data.result ? formatCommandOutputSummary(data.result) : "";
+  const watchdog = data.result?.reconnectingWatchdog?.triggered
+    ? `\n\n${formatWatchdogNotice(data.result.reconnectingWatchdog)}`
+    : data.commandLogs?.find((log) => log.reconnectingWatchdog?.triggered)?.reconnectingWatchdog
+      ? `\n\n${formatWatchdogNotice(data.commandLogs.find((log) => log.reconnectingWatchdog?.triggered)!.reconnectingWatchdog!)}`
+      : "";
   const logs = data.commandLogs?.length
-    ? `\n\nCommand logs:\n${data.commandLogs.map((log) => `${log.command}\n${log.stderr || log.stdout || ""}`).join("\n\n")}`
+    ? `\n\nCommand logs:\n${data.commandLogs.map((log) => `${log.command}\n${compactText(log.stderr || log.stdout || "", 800)}`).join("\n\n")}`
     : "";
-  return `${base}${code}${missing}${raw}${logs}`;
+  return `${base}${code}${missing}${watchdog}${raw}${logs}`;
+}
+
+function formatWatchdogNotice(watchdog: ReconnectingWatchdogResult): string {
+  const actions = watchdog.recommendedActions.length ? ` Next: ${watchdog.recommendedActions.join(" ")}` : "";
+  return `${watchdog.repairAction || "Reconnect watchdog stopped the stuck process."}${actions}`;
+}
+
+function formatCommandOutputSummary(result: NonNullable<ApiResult["result"]>): string {
+  const output = result.stderr || result.stdout;
+  if (!output) return "";
+  const truncated = result.stderrTruncated || result.stdoutTruncated;
+  const detail = truncated ? "\nShowing a bounded log tail." : "";
+  return `\n\nCommand output:${detail}\n${compactText(output, 1200)}`;
+}
+
+function compactText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `[trimmed for page notice]\n${value.slice(-maxLength)}`;
 }
